@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "749387101057",
+    "project_id": "festivo-backend-482d2",
+    "storage_bucket": "festivo-backend-482d2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:749387101057:android:25b557b584413f0c4c6e80",
+        "android_client_info": {
+          "package_name": "com.example.my_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAogIwWpNbKnMDA3WPa0ROsY4L0IGu-bCc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
