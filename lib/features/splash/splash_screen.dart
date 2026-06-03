@@ -1,7 +1,9 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:festivo/core/navigation/post_auth_navigation.dart';
-import 'package:festivo/features/auth/screens/login_screen.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 // ─────────────────────────────────────────────
@@ -9,7 +11,7 @@ import 'package:flutter/material.dart';
 //  • Animated logo (fade + scale)
 //  • Animated loading dots (pulsing)
 //  • Auth persistence: routes to correct screen on launch
-//  • Graceful Firestore error fallback → LoginScreen
+//  • 5s max wait; Firestore timeout; always leaves splash
 // ─────────────────────────────────────────────
 class SplashScreenV2 extends StatefulWidget {
   const SplashScreenV2({super.key});
@@ -20,10 +22,16 @@ class SplashScreenV2 extends StatefulWidget {
 
 class _SplashScreenV2State extends State<SplashScreenV2>
     with TickerProviderStateMixin {
+  static const _maxSplashDuration = Duration(seconds: 5);
+  static const _firestoreTimeout = Duration(seconds: 3);
+  static const _brandingDelay = Duration(milliseconds: 1200);
+
   late final AnimationController _logoCtrl;
   late final Animation<double> _logoFade;
   late final Animation<double> _logoScale;
   late final AnimationController _dotCtrl;
+
+  bool _navigationDone = false;
 
   @override
   void initState() {
@@ -58,45 +66,84 @@ class _SplashScreenV2State extends State<SplashScreenV2>
     super.dispose();
   }
 
-  // ── Auth resolution ───────────────────────────────────────
+  // ── Auth resolution (never blocks splash forever) ───────────
   Future<void> _resolveAuth() async {
-    await Future.delayed(const Duration(milliseconds: 2000));
-    if (!mounted) return;
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      _navigateTo(const LoginScreen());
-      return;
-    }
+    debugPrint('[Splash] _resolveAuth started');
 
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-      if (!mounted) return;
-
-      final role = doc.exists
-          ? ((doc.data()?['role'] as String?) ?? 'customer')
-          : 'customer';
-
-      navigateForRole(context, role);
-      return;
-    } catch (_) {
-      if (!mounted) return;
-      _navigateTo(const LoginScreen());
+      await _resolveAuthBody().timeout(
+        _maxSplashDuration,
+        onTimeout: () {
+          debugPrint('[Splash] failsafe: max ${_maxSplashDuration.inSeconds}s elapsed');
+          throw TimeoutException('Splash auth resolution timed out');
+        },
+      );
+    } catch (e, st) {
+      debugPrint('[Splash] error: $e');
+      debugPrint('[Splash] stack: $st');
+      _goToLogin(reason: 'error: $e');
     }
   }
 
-  void _navigateTo(Widget screen) {
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => screen,
-        transitionsBuilder: (_, anim, __, child) =>
-            FadeTransition(opacity: anim, child: child),
-        transitionDuration: const Duration(milliseconds: 400),
-      ),
-    );
+  Future<void> _resolveAuthBody() async {
+    await Future.delayed(_brandingDelay);
+    if (!mounted) return;
+
+    debugPrint('[Splash] checking FirebaseAuth.currentUser');
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      debugPrint('[Splash] no signed-in user -> LoginScreen');
+      _goToLogin(reason: 'no auth user');
+      return;
+    }
+
+    debugPrint('[Splash] uid=${user.uid}, loading Firestore users/${user.uid}');
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get()
+        .timeout(
+          _firestoreTimeout,
+          onTimeout: () {
+            debugPrint('[Splash] Firestore get timed out after ${_firestoreTimeout.inSeconds}s');
+            throw TimeoutException('Firestore user lookup timed out');
+          },
+        );
+
+    if (!mounted) return;
+
+    if (!doc.exists) {
+      debugPrint('[Splash] user document missing -> LoginScreen');
+      try {
+        await FirebaseAuth.instance.signOut();
+      } catch (e) {
+        debugPrint('[Splash] signOut after missing doc failed: $e');
+      }
+      _goToLogin(reason: 'missing user document');
+      return;
+    }
+
+    final roleRaw = doc.data()?['role'] as String?;
+    final role = (roleRaw == null || roleRaw.trim().isEmpty)
+        ? 'customer'
+        : roleRaw.trim().toLowerCase();
+
+    debugPrint('[Splash] role=$role -> navigateForRole');
+    _goToRole(role);
+  }
+
+  void _goToLogin({required String reason}) {
+    if (_navigationDone || !mounted) return;
+    _navigationDone = true;
+    debugPrint('[Splash] navigating to LoginScreen ($reason)');
+    navigateToLogin(context);
+  }
+
+  void _goToRole(String role) {
+    if (_navigationDone || !mounted) return;
+    _navigationDone = true;
+    debugPrint('[Splash] navigating for role=$role');
+    navigateForRole(context, role);
   }
 
   // ── Build ─────────────────────────────────────────────────
@@ -118,7 +165,6 @@ class _SplashScreenV2State extends State<SplashScreenV2>
             children: [
               const Spacer(flex: 2),
 
-              // Animated logo
               FadeTransition(
                 opacity: _logoFade,
                 child: ScaleTransition(
@@ -181,7 +227,6 @@ class _SplashScreenV2State extends State<SplashScreenV2>
 
               const Spacer(flex: 2),
 
-              // Animated loading dots
               AnimatedBuilder(
                 animation: _dotCtrl,
                 builder: (_, __) => Row(

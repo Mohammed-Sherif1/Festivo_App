@@ -7,15 +7,18 @@ import 'package:festivo/features/owner/screens/owner_shell.dart';
 
 /// Routes the user to the correct home screen after login or splash auth resolution.
 void navigateForRole(BuildContext context, String role) {
-  final normalized = role.toLowerCase();
+  final normalized = role.toLowerCase().trim();
   final Widget destination;
   switch (normalized) {
     case 'admin':
       destination = const AdminDashboardScreen();
+      break;
     case 'venue_owner':
       destination = const OwnerShell();
+      break;
     default:
       destination = const CustomerShell();
+      break;
   }
   Navigator.of(context).pushAndRemoveUntil(
     MaterialPageRoute(builder: (_) => destination),

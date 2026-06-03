@@ -1,15 +1,76 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:festivo/app/providers/app_providers.dart';
 import 'package:festivo/core/constants/app_colors.dart';
+import 'package:festivo/features/customer/domain/customer_booking.dart';
+import 'package:festivo/features/customer/services/booking_service.dart';
 
-class CustomerBookingsScreen extends ConsumerWidget {
+class CustomerBookingsScreen extends ConsumerStatefulWidget {
   const CustomerBookingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CustomerBookingsScreen> createState() =>
+      _CustomerBookingsScreenState();
+}
+
+class _CustomerBookingsScreenState extends ConsumerState<CustomerBookingsScreen> {
+  final _bookingService = BookingService();
+  String? _cancellingId;
+
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  String _formatDate(CustomerBooking b) {
+    final d = b.bookingDate;
+    final weekday = const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][d.weekday - 1];
+    return '$weekday, ${_months[d.month - 1]} ${d.day}, ${d.year} • ${b.bookingTime}';
+  }
+
+  Future<void> _cancelBooking(CustomerBooking booking) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel booking?'),
+        content: Text(
+          'Cancel your booking at ${booking.venueName} on ${_formatDate(booking)}?',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Yes, cancel'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _cancellingId = booking.id);
+    try {
+      await _bookingService.cancelBooking(booking.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Booking cancelled.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not cancel this booking.')),
+      );
+    } finally {
+      if (mounted) setState(() => _cancellingId = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final dark = ref.watch(isDarkProvider);
+    final user = FirebaseAuth.instance.currentUser;
+
     return Scaffold(
       backgroundColor: AppColors.bg(dark),
       body: SafeArea(
@@ -32,8 +93,9 @@ class CustomerBookingsScreen extends ConsumerWidget {
                       child: Image.asset(
                         'assets/logo.jpeg',
                         fit: BoxFit.contain,
-                        errorBuilder: (_, _, _) =>
-                            const Center(child: Text('🎉', style: TextStyle(fontSize: 20))),
+                        errorBuilder: (_, _, _) => const Center(
+                          child: Text('🎉', style: TextStyle(fontSize: 20)),
+                        ),
                       ),
                     ),
                   ),
@@ -59,33 +121,49 @@ class CustomerBookingsScreen extends ConsumerWidget {
               ),
             ),
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                children: const [
-                  _BookingCard(
-                    venueName: 'Grand Crystal Ballroom',
-                    eventType: 'Wedding',
-                    location: 'Zamalek, Cairo',
-                    date: 'Sun, Mar 15, 2026 • 6:00 PM',
-                    status: 'Confirmed',
-                    isConfirmed: true,
-                    depositPaid: '7,500 EGP',
-                    remainingAmount: '17,500 EGP',
-                  ),
-                  SizedBox(height: 16),
-                  _BookingCard(
-                    venueName: 'Sunset Rooftop Lounge',
-                    eventType: 'Party',
-                    location: 'Heliopolis, Cairo',
-                    date: 'Fri, Apr 18, 2026 • 8:00 PM',
-                    status: 'Pending',
-                    isConfirmed: false,
-                    remainingAmount: '12,000 EGP',
-                  ),
-                  SizedBox(height: 20),
-                ],
-              ),
+              child: user == null
+                  ? Center(
+                      child: Text(
+                        'Sign in to view your bookings.',
+                        style: TextStyle(color: AppColors.textM(dark)),
+                      ),
+                    )
+                  : StreamBuilder<List<CustomerBooking>>(
+                      stream: _bookingService.watchUserBookings(user.uid),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return Center(
+                            child: CircularProgressIndicator(color: AppColors.accent(dark)),
+                          );
+                        }
+                        final bookings = snapshot.data ?? [];
+                        if (bookings.isEmpty) {
+                          return Center(
+                            child: Text(
+                              'No bookings yet.',
+                              style: TextStyle(color: AppColors.textM(dark)),
+                            ),
+                          );
+                        }
+                        return ListView.separated(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          itemCount: bookings.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 16),
+                          itemBuilder: (_, i) {
+                            final b = bookings[i];
+                            return _BookingCard(
+                              booking: b,
+                              dateLabel: _formatDate(b),
+                              dark: dark,
+                              isCancelling: _cancellingId == b.id,
+                              onCancel: b.canCancel ? () => _cancelBooking(b) : null,
+                            );
+                          },
+                        );
+                      },
+                    ),
             ),
+            const SizedBox(height: 20),
           ],
         ),
       ),
@@ -93,30 +171,39 @@ class CustomerBookingsScreen extends ConsumerWidget {
   }
 }
 
-class _BookingCard extends ConsumerWidget {
-  final String venueName;
-  final String eventType;
-  final String location;
-  final String date;
-  final String status;
-  final bool isConfirmed;
-  final String? depositPaid;
-  final String remainingAmount;
+class _BookingCard extends StatelessWidget {
+  final CustomerBooking booking;
+  final String dateLabel;
+  final bool dark;
+  final bool isCancelling;
+  final VoidCallback? onCancel;
 
   const _BookingCard({
-    required this.venueName,
-    required this.eventType,
-    required this.location,
-    required this.date,
-    required this.status,
-    required this.isConfirmed,
-    this.depositPaid,
-    required this.remainingAmount,
+    required this.booking,
+    required this.dateLabel,
+    required this.dark,
+    required this.isCancelling,
+    this.onCancel,
   });
 
+  bool get _isConfirmed => booking.bookingStatus == 'Confirmed';
+
+  Color get _statusBg {
+    if (booking.bookingStatus == 'Cancelled') {
+      return const Color(0xFFFFEBEE);
+    }
+    return _isConfirmed ? const Color(0xFFE8F5E9) : const Color(0xFFFFF8E1);
+  }
+
+  Color get _statusFg {
+    if (booking.bookingStatus == 'Cancelled') {
+      return const Color(0xFFC62828);
+    }
+    return _isConfirmed ? const Color(0xFF2E7D32) : const Color(0xFFF57F17);
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final dark = ref.watch(isDarkProvider);
+  Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.card(dark),
@@ -132,7 +219,7 @@ class _BookingCard extends ConsumerWidget {
             children: [
               Expanded(
                 child: Text(
-                  venueName,
+                  booking.venueName,
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -143,17 +230,13 @@ class _BookingCard extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: isConfirmed
-                      ? const Color(0xFFE8F5E9)
-                      : const Color(0xFFFFF8E1),
+                  color: _statusBg,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  status,
+                  booking.bookingStatus,
                   style: TextStyle(
-                    color: isConfirmed
-                        ? const Color(0xFF2E7D32)
-                        : const Color(0xFFF57F17),
+                    color: _statusFg,
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                   ),
@@ -169,20 +252,46 @@ class _BookingCard extends ConsumerWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              eventType,
-              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+              booking.packageType,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
           const SizedBox(height: 8),
-          Text(location, style: TextStyle(color: AppColors.textM(dark))),
+          Text(
+            'Guests: ${booking.guestCount}',
+            style: TextStyle(color: AppColors.textM(dark)),
+          ),
           const SizedBox(height: 10),
-          Text(date, style: TextStyle(color: AppColors.textM(dark))),
-          if (depositPaid != null) ...[
-            const SizedBox(height: 6),
-            Text('Deposit Paid: $depositPaid', style: const TextStyle(color: Color(0xFF2E7D32))),
-          ],
+          Text(dateLabel, style: TextStyle(color: AppColors.textM(dark))),
           const SizedBox(height: 6),
-          Text('Remaining: $remainingAmount', style: const TextStyle(color: Color(0xFFD4AF37))),
+          Text(
+            'Payment: ${booking.paymentMethod} · ${booking.paymentStatus}',
+            style: TextStyle(color: AppColors.textM(dark), fontSize: 13),
+          ),
+          if (onCancel != null) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: isCancelling ? null : onCancel,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.redAccent,
+                  side: const BorderSide(color: Colors.redAccent),
+                ),
+                child: isCancelling
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Cancel Booking'),
+              ),
+            ),
+          ],
         ],
       ),
     );

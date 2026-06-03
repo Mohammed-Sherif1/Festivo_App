@@ -1,25 +1,41 @@
 import 'dart:io';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:festivo/app/providers/app_providers.dart';
 import 'package:festivo/core/constants/app_colors.dart';
+import 'package:festivo/features/customer/domain/payment_methods.dart';
 import 'package:festivo/features/customer/screens/customer_shell.dart';
+import 'package:festivo/features/customer/services/booking_service.dart';
+import 'package:festivo/features/customer/services/cloudinary_service.dart';
 
 class PaymentScreen extends ConsumerStatefulWidget {
+  final String venueId;
   final String venueName;
   final int totalAmount;
   final DateTime bookingDate;
   final String bookingTime;
+  final String userName;
+  final String phone;
+  final String email;
+  final int guestCount;
+  final String packageType;
 
   const PaymentScreen({
     super.key,
+    required this.venueId,
     required this.venueName,
     required this.totalAmount,
     required this.bookingDate,
     required this.bookingTime,
+    required this.userName,
+    required this.phone,
+    required this.email,
+    required this.guestCount,
+    required this.packageType,
   });
 
   @override
@@ -27,33 +43,10 @@ class PaymentScreen extends ConsumerStatefulWidget {
 }
 
 class _PaymentScreenState extends ConsumerState<PaymentScreen> {
+  final _bookingService = BookingService();
   int _selectedMethod = 0;
   File? _receiptFile;
   bool _isConfirming = false;
-
-  static const _methods = [
-    _PayMethod(
-      icon: Icons.payments_rounded,
-      iconBg: Color(0xFFD4F0DF),
-      iconColor: Color(0xFF4CAF50),
-      title: 'Cash',
-      subtitle: 'Pay on arrival at the venue',
-    ),
-    _PayMethod(
-      icon: Icons.dialpad_rounded,
-      iconBg: Color(0xFFDDE0FF),
-      iconColor: Color(0xFF7B9FD4),
-      title: 'Vodafone Cash',
-      subtitle: 'Pay via Vodafone Cash wallet',
-    ),
-    _PayMethod(
-      icon: Icons.bolt_rounded,
-      iconBg: Color(0xFFFFF3CD),
-      iconColor: Color(0xFFE8A87C),
-      title: 'InstaPay',
-      subtitle: 'Instant bank transfer via InstaPay',
-    ),
-  ];
 
   String _fmt(int n) => n.toString().replaceAllMapped(
         RegExp(r'\B(?=(\d{3})+(?!\d))'),
@@ -69,49 +62,113 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     return '${months[d.month - 1]} ${d.day}, ${d.year}';
   }
 
+  PaymentMethodOption get _currentMethod => kPaymentMethods[_selectedMethod];
+
   Future<void> _pickReceipt() async {
     final picker = ImagePicker();
-    final file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 75);
+    final file = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 75,
+    );
     if (file != null) {
       setState(() => _receiptFile = File(file.path));
     }
   }
 
   Future<void> _confirm() async {
-    if (_selectedMethod > 0 && _receiptFile == null) {
+    if (_currentMethod.requiresReceipt && _receiptFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please upload a payment receipt.')),
+        const SnackBar(content: Text('Please upload your payment receipt.')),
       );
       return;
     }
-    setState(() => _isConfirming = true);
-    await Future.delayed(const Duration(seconds: 1));
-    if (!mounted) return;
-    setState(() => _isConfirming = false);
 
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Booking Confirmed!'),
-        content: Text(
-          'Your booking at ${widget.venueName} on $_dateLabel at ${widget.bookingTime} '
-          'has been confirmed.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const CustomerShell()),
-                (route) => false,
-              );
-            },
-            child: const Text('Done'),
+    if (FirebaseAuth.instance.currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in to complete your booking.')),
+      );
+      return;
+    }
+
+    setState(() => _isConfirming = true);
+
+    try {
+      String? receiptUrl;
+      if (_currentMethod.requiresReceipt && _receiptFile != null) {
+        receiptUrl = await CloudinaryService.uploadReceipt(_receiptFile!);
+      }
+
+      final available = await _bookingService.isSlotAvailable(
+        venueId: widget.venueId,
+        bookingDate: widget.bookingDate,
+        bookingTime: widget.bookingTime,
+      );
+      if (!available) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This time slot is no longer available.')),
+        );
+        return;
+      }
+
+      final paymentStatus = _currentMethod.requiresReceipt
+          ? 'Pending Verification'
+          : 'Pending';
+
+      await _bookingService.createBooking(
+        venueId: widget.venueId,
+        venueName: widget.venueName,
+        userName: widget.userName,
+        phone: widget.phone,
+        email: widget.email,
+        guestCount: widget.guestCount,
+        packageType: widget.packageType,
+        bookingDate: widget.bookingDate,
+        bookingTime: widget.bookingTime,
+        paymentMethod: _currentMethod.title,
+        receiptUrl: receiptUrl,
+        paymentStatus: paymentStatus,
+      );
+
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Booking Confirmed!'),
+          content: Text(
+            'Your booking at ${widget.venueName} on $_dateLabel at ${widget.bookingTime} '
+            'has been confirmed.',
           ),
-        ],
-      ),
-    );
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const CustomerShell()),
+                  (route) => false,
+                );
+              },
+              child: const Text('Done'),
+            ),
+          ],
+        ),
+      );
+    } on SlotUnavailableException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This time slot is no longer available.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not complete booking. Please try again.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isConfirming = false);
+    }
   }
 
   @override
@@ -143,25 +200,48 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(widget.venueName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+                  Text(
+                    widget.venueName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                   const SizedBox(height: 6),
-                  Text('$_dateLabel · ${widget.bookingTime}', style: const TextStyle(color: Colors.white70)),
+                  Text(
+                    '$_dateLabel · ${widget.bookingTime}',
+                    style: const TextStyle(color: Colors.white70),
+                  ),
                   const SizedBox(height: 12),
                   Text(
                     '${_fmt(widget.totalAmount)} EGP',
-                    style: const TextStyle(color: AppColors.gold, fontSize: 28, fontWeight: FontWeight.w900),
+                    style: const TextStyle(
+                      color: AppColors.gold,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 24),
-            Text('Payment Method', style: TextStyle(fontWeight: FontWeight.w800, color: AppColors.textD(dark))),
+            Text(
+              'Payment Method',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: AppColors.textD(dark),
+              ),
+            ),
             const SizedBox(height: 12),
-            ...List.generate(_methods.length, (i) {
-              final m = _methods[i];
+            ...List.generate(kPaymentMethods.length, (i) {
+              final m = kPaymentMethods[i];
               final sel = _selectedMethod == i;
               return GestureDetector(
-                onTap: () => setState(() => _selectedMethod = i),
+                onTap: () => setState(() {
+                  _selectedMethod = i;
+                  if (!m.requiresReceipt) _receiptFile = null;
+                }),
                 child: Container(
                   margin: const EdgeInsets.only(bottom: 10),
                   padding: const EdgeInsets.all(14),
@@ -178,7 +258,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                       Container(
                         width: 44,
                         height: 44,
-                        decoration: BoxDecoration(color: m.iconBg, borderRadius: BorderRadius.circular(12)),
+                        decoration: BoxDecoration(
+                          color: m.iconBg,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         child: Icon(m.icon, color: m.iconColor),
                       ),
                       const SizedBox(width: 12),
@@ -186,8 +269,20 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(m.title, style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.textD(dark))),
-                            Text(m.subtitle, style: TextStyle(fontSize: 12, color: AppColors.textM(dark))),
+                            Text(
+                              m.title,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textD(dark),
+                              ),
+                            ),
+                            Text(
+                              m.subtitle,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textM(dark),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -200,20 +295,33 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                 ),
               );
             }),
-            if (_selectedMethod > 0) ...[
+            if (_currentMethod.requiresReceipt) ...[
               const SizedBox(height: 16),
-              Text('Upload Receipt', style: TextStyle(fontWeight: FontWeight.w800, color: AppColors.textD(dark))),
+              Text(
+                'Payment Receipt',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textD(dark),
+                ),
+              ),
               const SizedBox(height: 10),
               OutlinedButton.icon(
                 onPressed: _pickReceipt,
                 icon: const Icon(Icons.upload_file),
-                label: Text(_receiptFile == null ? 'Choose image' : 'Receipt selected'),
+                label: Text(
+                  _receiptFile == null ? 'Upload Receipt' : 'Replace Receipt',
+                ),
               ),
               if (_receiptFile != null) ...[
                 const SizedBox(height: 10),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: Image.file(_receiptFile!, height: 120, width: double.infinity, fit: BoxFit.cover),
+                  child: Image.file(
+                    _receiptFile!,
+                    height: 160,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ],
             ],
@@ -226,15 +334,23 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.accent(dark),
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
                 child: _isConfirming
                     ? const SizedBox(
                         width: 24,
                         height: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
-                    : const Text('Confirm Booking', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                    : const Text(
+                        'Confirm Booking',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                      ),
               ),
             ),
           ],
@@ -242,20 +358,4 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       ),
     );
   }
-}
-
-class _PayMethod {
-  final IconData icon;
-  final Color iconBg;
-  final Color iconColor;
-  final String title;
-  final String subtitle;
-
-  const _PayMethod({
-    required this.icon,
-    required this.iconBg,
-    required this.iconColor,
-    required this.title,
-    required this.subtitle,
-  });
 }

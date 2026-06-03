@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:festivo/app/providers/app_providers.dart';
 import 'package:festivo/core/constants/app_colors.dart';
+import 'package:festivo/features/customer/domain/payment_methods.dart';
 
 class ProfileSubPage extends StatelessWidget {
   final String title;
@@ -233,12 +234,6 @@ class PaymentMethodsPage extends StatefulWidget {
 class _PaymentMethodsPageState extends State<PaymentMethodsPage> {
   int _selected = 0;
 
-  static const _methods = [
-    _PayMethod(Icons.payments_rounded, Color(0xFFD4F0DF), Color(0xFF4CAF50), 'Cash', 'Pay on arrival at the venue'),
-    _PayMethod(Icons.dialpad_rounded, Color(0xFFDDE0FF), Color(0xFF7B9FD4), 'Vodafone Cash', 'Pay via Vodafone Cash wallet'),
-    _PayMethod(Icons.bolt_rounded, Color(0xFFFFF3CD), Color(0xFFE8A87C), 'InstaPay', 'Instant bank transfer via InstaPay'),
-  ];
-
   @override
   Widget build(BuildContext context) {
     return ProfileSubPage(
@@ -250,8 +245,8 @@ class _PaymentMethodsPageState extends State<PaymentMethodsPage> {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              ...List.generate(_methods.length, (i) {
-                final m = _methods[i];
+              ...List.generate(kPaymentMethods.length, (i) {
+                final m = kPaymentMethods[i];
                 final sel = _selected == i;
                 return GestureDetector(
                   onTap: () => setState(() => _selected = i),
@@ -299,16 +294,6 @@ class _PaymentMethodsPageState extends State<PaymentMethodsPage> {
       ),
     );
   }
-}
-
-class _PayMethod {
-  final IconData icon;
-  final Color iconBg;
-  final Color iconColor;
-  final String title;
-  final String subtitle;
-
-  const _PayMethod(this.icon, this.iconBg, this.iconColor, this.title, this.subtitle);
 }
 
 class PrivacySecurityPage extends StatelessWidget {
