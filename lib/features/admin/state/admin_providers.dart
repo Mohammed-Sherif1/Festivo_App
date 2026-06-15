@@ -7,6 +7,3 @@ final adminTabProvider = StateProvider<AdminTab>((ref) => AdminTab.overview);
 final adminUserSuspendedProvider = StateProvider.autoDispose.family<bool, int>(
   (ref, userIndex) => false,
 );
-
-final adminVenueStatusProvider = StateProvider.autoDispose
-    .family<String, String>((ref, venueKey) => 'Pending');

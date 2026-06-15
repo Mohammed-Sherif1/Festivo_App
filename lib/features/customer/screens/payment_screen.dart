@@ -15,6 +15,7 @@ import 'package:festivo/features/customer/services/cloudinary_service.dart';
 class PaymentScreen extends ConsumerStatefulWidget {
   final String venueId;
   final String venueName;
+  final String ownerId;
   final int totalAmount;
   final DateTime bookingDate;
   final String bookingTime;
@@ -28,6 +29,7 @@ class PaymentScreen extends ConsumerStatefulWidget {
     super.key,
     required this.venueId,
     required this.venueName,
+    required this.ownerId,
     required this.totalAmount,
     required this.bookingDate,
     required this.bookingTime,
@@ -118,6 +120,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       await _bookingService.createBooking(
         venueId: widget.venueId,
         venueName: widget.venueName,
+        ownerId: widget.ownerId,
         userName: widget.userName,
         phone: widget.phone,
         email: widget.email,
@@ -128,6 +131,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         paymentMethod: _currentMethod.title,
         receiptUrl: receiptUrl,
         paymentStatus: paymentStatus,
+        totalAmount: widget.totalAmount,
       );
 
       if (!mounted) return;

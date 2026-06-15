@@ -55,6 +55,22 @@ class BookingService {
     });
   }
 
+  Stream<List<CustomerBooking>> watchOwnerBookings(String ownerId) {
+    return _bookings.where('ownerId', isEqualTo: ownerId).snapshots().map((snap) {
+      final list = snap.docs.map(CustomerBooking.fromDoc).toList();
+      list.sort((a, b) {
+        if (a.bookingStatus == 'Pending' && b.bookingStatus != 'Pending') {
+          return -1;
+        }
+        if (b.bookingStatus == 'Pending' && a.bookingStatus != 'Pending') {
+          return 1;
+        }
+        return b.createdAt.compareTo(a.createdAt);
+      });
+      return list;
+    });
+  }
+
   Set<String> slotsForDate(VenueSlotMap map, DateTime date) =>
       map[dateKey(date)] ?? {};
 
@@ -80,6 +96,7 @@ class BookingService {
   Future<String> createBooking({
     required String venueId,
     required String venueName,
+    required String ownerId,
     required String userName,
     required String phone,
     required String email,
@@ -90,6 +107,7 @@ class BookingService {
     required String paymentMethod,
     String? receiptUrl,
     required String paymentStatus,
+    required int totalAmount,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw StateError('Not signed in');
@@ -108,6 +126,7 @@ class BookingService {
       'email': email,
       'venueId': venueId,
       'venueName': venueName,
+      'ownerId': ownerId,
       'guestCount': guestCount,
       'packageType': packageType,
       'bookingDate': Timestamp.fromDate(startOfDay(bookingDate)),
@@ -116,6 +135,7 @@ class BookingService {
       'receiptUrl': receiptUrl,
       'paymentStatus': paymentStatus,
       'bookingStatus': 'Pending',
+      'totalAmount': totalAmount,
       'createdAt': FieldValue.serverTimestamp(),
     });
     return doc.id;
@@ -129,5 +149,25 @@ class BookingService {
       throw StateError('Booking cannot be cancelled');
     }
     await _bookings.doc(bookingId).update({'bookingStatus': 'Cancelled'});
+  }
+
+  Future<void> updateBookingStatus({
+    required String bookingId,
+    required String ownerId,
+    required String status,
+  }) async {
+    final doc = await _bookings.doc(bookingId).get();
+    if (!doc.exists) throw StateError('Booking not found');
+    final data = doc.data()!;
+    if (data['ownerId'] != ownerId) throw StateError('Not authorized');
+
+    final current = data['bookingStatus'] as String? ?? '';
+    if (current != 'Pending') {
+      throw StateError('Only pending bookings can be updated');
+    }
+    if (status != 'Confirmed' && status != 'Cancelled') {
+      throw ArgumentError('Invalid status: $status');
+    }
+    await _bookings.doc(bookingId).update({'bookingStatus': status});
   }
 }

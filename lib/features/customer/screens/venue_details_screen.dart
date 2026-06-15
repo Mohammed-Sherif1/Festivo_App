@@ -8,6 +8,7 @@ import 'package:festivo/features/customer/domain/customer_models.dart';
 import 'package:festivo/features/customer/screens/booking_screen.dart';
 import 'package:festivo/features/customer/screens/venue_reviews_screen.dart';
 import 'package:festivo/features/customer/state/customer_home_controller.dart';
+import 'package:festivo/features/customer/widgets/venue_image_carousel.dart';
 import 'package:festivo/features/customer/widgets/toast.dart';
 
 class VenueDetailsScreen extends ConsumerWidget {
@@ -366,19 +367,11 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        Container(
+        VenueImageCarousel(
+          imageUrls: venue.imageUrls,
+          fallbackEmoji: venue.emoji,
           height: 260,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [AppColors.accent(dark), AppColors.accent2(dark)],
-            ),
-          ),
-          child: Center(
-            child: Text(venue.emoji, style: const TextStyle(fontSize: 80)),
-          ),
+          dark: dark,
         ),
         Positioned(
           top: MediaQuery.paddingOf(context).top + 8,

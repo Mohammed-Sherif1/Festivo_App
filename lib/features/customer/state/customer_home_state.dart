@@ -39,17 +39,12 @@ class CustomerHomeState {
     );
   }
 
-  List<Venue> get filteredVenues {
-    final q = searchQuery.trim().toLowerCase();
-    return kVenues.where((v) {
-      final matchCategory =
-          selectedCategory == 'All' || v.category == selectedCategory;
-      final matchPrice = v.price >= priceMin && v.price <= priceMax;
-      final matchQuery = q.isEmpty ||
-          v.name.toLowerCase().contains(q) ||
-          v.location.toLowerCase().contains(q);
-      return matchCategory && matchPrice && matchQuery;
-    }).toList();
-  }
+  List<Venue> filteredVenues(List<Venue> venues) => filterVenues(
+        venues,
+        selectedCategory: selectedCategory,
+        priceMin: priceMin,
+        priceMax: priceMax,
+        searchQuery: searchQuery,
+      );
 }
 

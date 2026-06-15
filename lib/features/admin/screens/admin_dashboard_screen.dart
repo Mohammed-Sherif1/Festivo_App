@@ -8,6 +8,7 @@ import '../models/stat_model.dart';
 import '../models/activity_model.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/activity_card.dart';
+import 'package:festivo/features/customer/state/venue_providers.dart';
 import '../widgets/venue_card.dart';
 import '../state/admin_providers.dart';
 
@@ -629,22 +630,27 @@ class _SuspendButtonState extends ConsumerState<_SuspendButton> {
 // ─────────────────────────────────────────────
 // Venues Tab
 // ─────────────────────────────────────────────
-class _VenuesTab extends StatelessWidget {
+class _VenuesTab extends ConsumerWidget {
   const _VenuesTab();
 
-  static final _venues = [
-    {'name': 'Grand Crystal Ballroom', 'cat': 'Wedding', 'status': 'Approved', 'owner': 'Sara Mohamed'},
-    {'name': 'Sunset Rooftop Lounge', 'cat': 'Party', 'status': 'Pending', 'owner': 'Ahmed Hassan'},
-    {'name': 'Cairo Corporate Hub', 'cat': 'Corporate', 'status': 'Pending', 'owner': 'Omar Ali'},
-  ];
-
   @override
-  Widget build(BuildContext context) {
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: _venues.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemBuilder: (_, i) => VenueCard(venue: _venues[i]),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final venuesAsync = ref.watch(adminVenuesProvider);
+
+    return venuesAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (_, __) => const Center(child: Text('Could not load venues')),
+      data: (venues) {
+        if (venues.isEmpty) {
+          return const Center(child: Text('No venues submitted yet.'));
+        }
+        return ListView.separated(
+          padding: const EdgeInsets.all(16),
+          itemCount: venues.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 10),
+          itemBuilder: (_, i) => VenueCard(venue: venues[i]),
+        );
+      },
     );
   }
 }

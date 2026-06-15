@@ -1,17 +1,64 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:festivo/features/owner/domain/owner_models.dart';
-import 'package:festivo/features/owner/state/owner_store.dart';
+import 'package:festivo/features/customer/domain/customer_booking.dart';
+import 'package:festivo/features/customer/services/booking_service.dart';
+import 'package:festivo/features/owner/state/owner_providers.dart';
 import 'package:festivo/features/owner/theme/owner_colors.dart';
 import 'package:festivo/features/owner/widgets/owner_widgets.dart';
 
 class OwnerBookingsScreen extends ConsumerWidget {
   const OwnerBookingsScreen({super.key});
 
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  String _formatDate(CustomerBooking booking) {
+    final d = booking.bookingDate;
+    final weekday =
+        const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][d.weekday - 1];
+    return '$weekday, ${_months[d.month - 1]} ${d.day}, ${d.year} • ${booking.bookingTime}';
+  }
+
+  Future<void> _updateStatus(
+    BuildContext context,
+    WidgetRef ref,
+    CustomerBooking booking,
+    String status,
+  ) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    try {
+      await ref.read(bookingServiceProvider).updateBookingStatus(
+            bookingId: booking.id,
+            ownerId: uid,
+            status: status,
+          );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            status == 'Confirmed'
+                ? 'Booking confirmed.'
+                : 'Booking rejected.',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not update booking.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bookings = ref.watch(ownerStoreProvider).bookings;
+    final bookingsAsync = ref.watch(ownerBookingsProvider);
 
     return Scaffold(
       backgroundColor: OwnerColors.pinkBg,
@@ -21,74 +68,94 @@ class OwnerBookingsScreen extends ConsumerWidget {
             width: double.infinity,
             decoration: const BoxDecoration(gradient: OwnerColors.grad),
             padding: const EdgeInsets.fromLTRB(16, 52, 16, 20),
-            child: const Text(
-              'Bookings',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Booking Requests',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Review and respond to customer booking requests',
+                  style: TextStyle(fontSize: 12, color: Colors.white70),
+                ),
+              ],
             ),
           ),
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(14),
-              itemCount: bookings.length,
-              itemBuilder: (context, i) {
-                final b = bookings[i];
-                return OwnerCard(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              b.venueName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: OwnerColors.textDark,
-                              ),
-                            ),
-                          ),
-                          _statusBadge(b.status),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(b.customerName, style: const TextStyle(color: OwnerColors.textMid)),
-                      Text('${b.date} · ${b.timeSlot}', style: const TextStyle(fontSize: 12, color: OwnerColors.textGrey)),
-                      const SizedBox(height: 8),
-                      Text(
-                        '${b.amount.toStringAsFixed(0)} EGP · ${b.guests} guests',
-                        style: const TextStyle(fontWeight: FontWeight.w600, color: OwnerColors.gold),
-                      ),
-                      if (b.status == BookingStatus.pending) ...[
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () => ref
-                                    .read(ownerStoreProvider.notifier)
-                                    .updateBookingStatus(b.id, BookingStatus.cancelled),
-                                child: const Text('Decline'),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: OwnerColors.pink,
-                                  foregroundColor: Colors.white,
-                                ),
-                                onPressed: () => ref
-                                    .read(ownerStoreProvider.notifier)
-                                    .updateBookingStatus(b.id, BookingStatus.confirmed),
-                                child: const Text('Confirm'),
-                              ),
-                            ),
-                          ],
+            child: bookingsAsync.when(
+              loading: () => const Center(
+                child: CircularProgressIndicator(color: OwnerColors.pink),
+              ),
+              error: (_, __) => const Center(
+                child: Text(
+                  'Could not load bookings',
+                  style: TextStyle(color: OwnerColors.textGrey),
+                ),
+              ),
+              data: (bookings) {
+                if (bookings.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'No booking requests yet.',
+                      style: TextStyle(color: OwnerColors.textGrey),
+                    ),
+                  );
+                }
+
+                final pending =
+                    bookings.where((b) => b.bookingStatus == 'Pending').toList();
+                final others =
+                    bookings.where((b) => b.bookingStatus != 'Pending').toList();
+
+                return ListView(
+                  padding: const EdgeInsets.all(14),
+                  children: [
+                    if (pending.isNotEmpty) ...[
+                      const Text(
+                        'Pending Requests',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: OwnerColors.textDark,
                         ),
-                      ],
+                      ),
+                      const SizedBox(height: 10),
+                      ...pending.map(
+                        (b) => _BookingCard(
+                          booking: b,
+                          dateLabel: _formatDate(b),
+                          showActions: true,
+                          onApprove: () =>
+                              _updateStatus(context, ref, b, 'Confirmed'),
+                          onReject: () =>
+                              _updateStatus(context, ref, b, 'Cancelled'),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                     ],
-                  ),
+                    if (others.isNotEmpty) ...[
+                      const Text(
+                        'All Bookings',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: OwnerColors.textDark,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      ...others.map(
+                        (b) => _BookingCard(
+                          booking: b,
+                          dateLabel: _formatDate(b),
+                          showActions: false,
+                        ),
+                      ),
+                    ],
+                  ],
                 );
               },
             ),
@@ -97,17 +164,103 @@ class OwnerBookingsScreen extends ConsumerWidget {
       ),
     );
   }
+}
 
-  Widget _statusBadge(BookingStatus status) {
+class _BookingCard extends StatelessWidget {
+  final CustomerBooking booking;
+  final String dateLabel;
+  final bool showActions;
+  final VoidCallback? onApprove;
+  final VoidCallback? onReject;
+
+  const _BookingCard({
+    required this.booking,
+    required this.dateLabel,
+    required this.showActions,
+    this.onApprove,
+    this.onReject,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return OwnerCard(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  booking.venueName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: OwnerColors.textDark,
+                  ),
+                ),
+              ),
+              _statusBadge(booking.bookingStatus),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(booking.userName, style: const TextStyle(color: OwnerColors.textMid)),
+          Text(
+            booking.phone,
+            style: const TextStyle(fontSize: 12, color: OwnerColors.textGrey),
+          ),
+          Text(
+            dateLabel,
+            style: const TextStyle(fontSize: 12, color: OwnerColors.textGrey),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${booking.totalAmount} EGP · ${booking.guestCount} guests · ${booking.packageType}',
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              color: OwnerColors.gold,
+            ),
+          ),
+          if (showActions) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onReject,
+                    child: const Text('Reject'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: OwnerColors.pink,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: onApprove,
+                    child: const Text('Approve'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _statusBadge(String status) {
     switch (status) {
-      case BookingStatus.confirmed:
+      case 'Confirmed':
         return OwnerBadge.confirmed();
-      case BookingStatus.pending:
+      case 'Pending':
         return OwnerBadge.pending();
-      case BookingStatus.completed:
+      case 'Completed':
         return OwnerBadge.completed();
-      case BookingStatus.cancelled:
+      case 'Cancelled':
         return OwnerBadge.cancelled();
+      default:
+        return OwnerBadge.pending();
     }
   }
 }

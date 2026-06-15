@@ -3,9 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:festivo/app/providers/app_providers.dart';
 import 'package:festivo/core/constants/app_colors.dart';
-import 'package:festivo/features/customer/domain/customer_models.dart';
-import 'package:festivo/features/customer/state/customer_home_controller.dart';
 import 'package:festivo/features/customer/screens/venue_details_screen.dart';
+import 'package:festivo/features/customer/state/customer_home_controller.dart';
+import 'package:festivo/features/customer/state/venue_providers.dart';
 import 'package:festivo/features/customer/widgets/toast.dart';
 import 'package:festivo/features/customer/widgets/venue_list.dart';
 
@@ -16,7 +16,7 @@ class CustomerFavoritesScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final dark = ref.watch(isDarkProvider);
     final state = ref.watch(customerHomeControllerProvider);
-    final favorites = kVenues.where((v) => state.favorites.contains(v.id)).toList();
+    final venuesAsync = ref.watch(approvedVenuesProvider);
 
     return Scaffold(
       backgroundColor: AppColors.bg(dark),
@@ -67,8 +67,23 @@ class CustomerFavoritesScreen extends ConsumerWidget {
               ),
             ),
             Expanded(
-              child: favorites.isEmpty
-                  ? Center(
+              child: venuesAsync.when(
+                loading: () => Center(
+                  child: CircularProgressIndicator(color: AppColors.accent(dark)),
+                ),
+                error: (_, __) => Center(
+                  child: Text(
+                    'Could not load favorites',
+                    style: TextStyle(color: AppColors.textM(dark)),
+                  ),
+                ),
+                data: (venues) {
+                  final favorites = venues
+                      .where((v) => state.favorites.contains(v.id))
+                      .toList();
+
+                  if (favorites.isEmpty) {
+                    return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -88,29 +103,33 @@ class CustomerFavoritesScreen extends ConsumerWidget {
                           ),
                         ],
                       ),
-                    )
-                  : ListView.builder(
-                      itemCount: favorites.length,
-                      padding: const EdgeInsets.only(bottom: 20),
-                      itemBuilder: (context, i) {
-                        final venue = favorites[i];
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: VenueCard(
-                            venue: venue,
-                            isDark: dark,
-                            isFav: true,
-                            onToggleFav: () {
-                              ref
-                                  .read(customerHomeControllerProvider.notifier)
-                                  .toggleFavorite(venue.id);
-                              showToast(context, 'Removed from favorites', dark);
-                            },
-                            onView: () => VenueDetailsScreen.open(context, venue),
-                          ),
-                        );
-                      },
-                    ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    itemCount: favorites.length,
+                    padding: const EdgeInsets.only(bottom: 20),
+                    itemBuilder: (context, i) {
+                      final venue = favorites[i];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: VenueCard(
+                          venue: venue,
+                          isDark: dark,
+                          isFav: true,
+                          onToggleFav: () {
+                            ref
+                                .read(customerHomeControllerProvider.notifier)
+                                .toggleFavorite(venue.id);
+                            showToast(context, 'Removed from favorites', dark);
+                          },
+                          onView: () => VenueDetailsScreen.open(context, venue),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ],
         ),

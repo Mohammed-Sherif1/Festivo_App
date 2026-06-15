@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/constants/app_colors.dart';
-import '../state/admin_providers.dart';
 
-// ─────────────────────────────────────────────
-// Venue Manage Card used in the admin Venues tab
-// ─────────────────────────────────────────────
+import 'package:festivo/core/constants/app_colors.dart';
+import 'package:festivo/features/customer/domain/customer_models.dart';
+import 'package:festivo/features/customer/state/venue_providers.dart';
+
 class VenueCard extends ConsumerStatefulWidget {
-  final Map<String, String> venue;
+  final Venue venue;
 
   const VenueCard({super.key, required this.venue});
 
@@ -16,22 +15,43 @@ class VenueCard extends ConsumerStatefulWidget {
 }
 
 class _VenueCardState extends ConsumerState<VenueCard> {
-  late final String _key;
+  bool _updating = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _key = widget.venue['name'] ?? widget.venue.toString();
-    ref.read(adminVenueStatusProvider(_key).notifier).state =
-        widget.venue['status'] ?? 'Pending';
+  Future<void> _setStatus(String status) async {
+    setState(() => _updating = true);
+    try {
+      await ref.read(venueServiceProvider).updateApprovalStatus(
+            venueId: widget.venue.id,
+            status: status,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            status == Venue.statusApproved
+                ? 'Venue approved.'
+                : status == Venue.statusRejected
+                    ? 'Venue rejected.'
+                    : 'Venue status updated.',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not update venue status.')),
+      );
+    } finally {
+      if (mounted) setState(() => _updating = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final venue = widget.venue;
-    final status = ref.watch(adminVenueStatusProvider(_key));
-    final isPending = status == 'Pending';
-    final isApproved = status == 'Approved';
+    final status = venue.status;
+    final isPending = status == Venue.statusPending;
+    final isApproved = status == Venue.statusApproved;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -49,12 +69,11 @@ class _VenueCardState extends ConsumerState<VenueCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header row
           Row(
             children: [
               Expanded(
                 child: Text(
-                  venue['name']!,
+                  venue.name,
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -63,7 +82,7 @@ class _VenueCardState extends ConsumerState<VenueCard> {
                 ),
               ),
               _SmallBadge(
-                label: venue['cat']!,
+                label: venue.category,
                 bg: AppColors.softRose.withOpacity(0.18),
                 color: AppColors.deepRose,
               ),
@@ -85,33 +104,34 @@ class _VenueCardState extends ConsumerState<VenueCard> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Owner: ${venue['owner']!}',
+            'Owner: ${venue.ownerName}',
             style: const TextStyle(fontSize: 12, color: AppColors.textLight),
           ),
-          // Action buttons (only when pending)
+          Text(
+            venue.location,
+            style: const TextStyle(fontSize: 12, color: AppColors.textLight),
+          ),
           if (isPending) ...[
             const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
                   child: _ActionButton(
-                    label: '✓ Approve',
+                    label: _updating ? '…' : '✓ Approve',
                     bg: const Color(0xFF22C55E),
-                    onTap: () {
-                      ref.read(adminVenueStatusProvider(_key).notifier).state =
-                          'Approved';
-                    },
+                    onTap: _updating
+                        ? () {}
+                        : () => _setStatus(Venue.statusApproved),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: _ActionButton(
-                    label: '✗ Reject',
+                    label: _updating ? '…' : '✗ Reject',
                     bg: const Color(0xFFEF4444),
-                    onTap: () {
-                      ref.read(adminVenueStatusProvider(_key).notifier).state =
-                          'Rejected';
-                    },
+                    onTap: _updating
+                        ? () {}
+                        : () => _setStatus(Venue.statusRejected),
                   ),
                 ),
               ],
@@ -136,7 +156,6 @@ class _VenueCardState extends ConsumerState<VenueCard> {
   }
 }
 
-// ── Small Badge ───────────────────────────────────────────────
 class _SmallBadge extends StatelessWidget {
   final String label;
   final Color bg;
@@ -168,7 +187,6 @@ class _SmallBadge extends StatelessWidget {
   }
 }
 
-// ── Action Button ─────────────────────────────────────────────
 class _ActionButton extends StatelessWidget {
   final String label;
   final Color bg;

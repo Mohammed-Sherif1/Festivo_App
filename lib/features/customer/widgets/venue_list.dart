@@ -138,19 +138,15 @@ class VenueCard extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFFD0D8E8), Color(0xFFB8C4D8)],
-                    ),
-                  ),
-                ),
-                Center(
-                  child:
-                      Text(venue.emoji, style: const TextStyle(fontSize: 60)),
-                ),
+                if (venue.imageUrls.isNotEmpty)
+                  Image.network(
+                    venue.imageUrls.first,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    errorBuilder: (_, _, _) => _emojiBackground(venue.emoji),
+                  )
+                else
+                  _emojiBackground(venue.emoji),
                 Positioned(
                   top: 10,
                   right: 10,
@@ -268,6 +264,19 @@ class VenueCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _emojiBackground(String emoji) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFD0D8E8), Color(0xFFB8C4D8)],
+        ),
+      ),
+      child: Center(child: Text(emoji, style: const TextStyle(fontSize: 60))),
     );
   }
 }

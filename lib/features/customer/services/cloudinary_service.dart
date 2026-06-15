@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:festivo/core/constants/cloudinary_config.dart';
 
 class CloudinaryService {
-  static Future<String> uploadReceipt(File imageFile) async {
+  static Future<String> uploadImage(File imageFile) async {
     final uri = Uri.parse(
       'https://api.cloudinary.com/v1_1/${CloudinaryConfig.cloudName}/image/upload',
     );
@@ -27,5 +27,16 @@ class CloudinaryService {
       throw Exception('Cloudinary response missing secure_url');
     }
     return url;
+  }
+
+  static Future<String> uploadReceipt(File imageFile) => uploadImage(imageFile);
+
+  /// Uploads multiple images sequentially to avoid rate limits.
+  static Future<List<String>> uploadImages(List<File> files) async {
+    final urls = <String>[];
+    for (final file in files) {
+      urls.add(await uploadImage(file));
+    }
+    return urls;
   }
 }

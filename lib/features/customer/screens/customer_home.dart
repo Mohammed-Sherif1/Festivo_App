@@ -7,6 +7,7 @@ import 'package:festivo/core/constants/app_colors.dart';
 import 'package:festivo/features/customer/state/customer_home_controller.dart';
 import 'package:festivo/features/customer/state/customer_home_state.dart';
 import 'package:festivo/features/customer/state/customer_user_providers.dart';
+import 'package:festivo/features/customer/state/venue_providers.dart';
 
 import '../widgets/category_row.dart';
 import '../widgets/filter_panel.dart';
@@ -80,6 +81,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final d = ref.watch(isDarkProvider);
     final state = ref.watch(customerHomeControllerProvider);
     final firstName = ref.watch(customerFirstNameProvider).value ?? 'User';
+    final venuesAsync = ref.watch(approvedVenuesProvider);
     SystemChrome.setSystemUIOverlayStyle(
       d ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
     );
@@ -104,10 +106,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ),
           CategoryRow(isDark: d, selected: state.selectedCategory),
           Expanded(
-            child: VenueList(
-              isDark: d,
-              venues: state.filteredVenues,
-              favorites: state.favorites,
+            child: venuesAsync.when(
+              loading: () => Center(
+                child: CircularProgressIndicator(color: AppColors.accent(d)),
+              ),
+              error: (e, _) => Center(
+                child: Text(
+                  'Could not load venues',
+                  style: TextStyle(color: AppColors.textM(d)),
+                ),
+              ),
+              data: (venues) {
+                if (venues.isEmpty) {
+                  return Center(
+                    child: Text(
+                      'No venues available yet.\nCheck back after owners submit venues.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.textM(d)),
+                    ),
+                  );
+                }
+                return VenueList(
+                  isDark: d,
+                  venues: state.filteredVenues(venues),
+                  favorites: state.favorites,
+                );
+              },
             ),
           ),
         ],

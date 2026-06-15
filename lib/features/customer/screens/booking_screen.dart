@@ -51,6 +51,22 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
       widget.venue.price + (_pkgMultiplier * (widget.venue.price ~/ 2));
 
   @override
+  void initState() {
+    super.initState();
+    if (!widget.venue.isApproved) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This venue is not available for booking yet.'),
+          ),
+        );
+        Navigator.pop(context);
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
@@ -112,6 +128,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
           builder: (_) => PaymentScreen(
             venueId: widget.venue.id,
             venueName: widget.venue.name,
+            ownerId: widget.venue.ownerId,
             totalAmount: _totalPrice,
             bookingDate: _selectedDate!,
             bookingTime: _selectedTime,

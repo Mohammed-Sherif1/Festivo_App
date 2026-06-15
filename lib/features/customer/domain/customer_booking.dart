@@ -16,6 +16,8 @@ class CustomerBooking {
   final String? receiptUrl;
   final String paymentStatus;
   final String bookingStatus;
+  final String ownerId;
+  final int totalAmount;
   final DateTime createdAt;
 
   const CustomerBooking({
@@ -34,6 +36,8 @@ class CustomerBooking {
     this.receiptUrl,
     required this.paymentStatus,
     required this.bookingStatus,
+    required this.ownerId,
+    required this.totalAmount,
     required this.createdAt,
   });
 
@@ -60,6 +64,8 @@ class CustomerBooking {
       receiptUrl: data['receiptUrl'] as String?,
       paymentStatus: data['paymentStatus'] as String? ?? '',
       bookingStatus: data['bookingStatus'] as String? ?? 'Pending',
+      ownerId: data['ownerId'] as String? ?? '',
+      totalAmount: (data['totalAmount'] as num?)?.toInt() ?? 0,
       createdAt: created,
     );
   }
