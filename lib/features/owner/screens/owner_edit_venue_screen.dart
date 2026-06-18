@@ -8,6 +8,7 @@ import 'package:festivo/features/customer/domain/customer_models.dart';
 import 'package:festivo/features/customer/services/cloudinary_service.dart';
 import 'package:festivo/features/customer/state/venue_providers.dart';
 import 'package:festivo/features/owner/theme/owner_colors.dart';
+import 'package:festivo/features/owner/widgets/amenity_checkbox_picker.dart';
 import 'package:festivo/features/owner/widgets/venue_images_picker.dart';
 
 class OwnerEditVenueScreen extends ConsumerStatefulWidget {
@@ -27,6 +28,7 @@ class _OwnerEditVenueScreenState extends ConsumerState<OwnerEditVenueScreen> {
   late final TextEditingController _descriptionCtrl;
   late String _category;
   late List<String> _existingImageUrls;
+  late Set<String> _selectedAmenities;
   final List<File> _newImages = [];
   bool _saving = false;
 
@@ -50,6 +52,7 @@ class _OwnerEditVenueScreenState extends ConsumerState<OwnerEditVenueScreen> {
     _descriptionCtrl = TextEditingController(text: v.description);
     _category = v.category;
     _existingImageUrls = List.of(v.imageUrls);
+    _selectedAmenities = Set<String>.from(v.amenities);
   }
 
   @override
@@ -105,6 +108,7 @@ class _OwnerEditVenueScreenState extends ConsumerState<OwnerEditVenueScreen> {
             price: price,
             capacity: capacity,
             description: _descriptionCtrl.text.trim(),
+            amenities: _selectedAmenities.toList(),
             imageUrls: imageUrls,
           );
       if (!mounted) return;
@@ -181,6 +185,12 @@ class _OwnerEditVenueScreenState extends ConsumerState<OwnerEditVenueScreen> {
                 .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                 .toList(),
             onChanged: _saving ? null : (v) => setState(() => _category = v!),
+          ),
+          const SizedBox(height: 16),
+          AmenityCheckboxPicker(
+            selectedIds: _selectedAmenities,
+            enabled: !_saving,
+            onChanged: (ids) => setState(() => _selectedAmenities = ids),
           ),
           const SizedBox(height: 20),
           ElevatedButton(

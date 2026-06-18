@@ -8,6 +8,7 @@ import 'package:festivo/features/customer/domain/customer_models.dart';
 import 'package:festivo/features/customer/screens/booking_screen.dart';
 import 'package:festivo/features/customer/screens/venue_reviews_screen.dart';
 import 'package:festivo/features/customer/state/customer_home_controller.dart';
+import 'package:festivo/features/customer/widgets/amenity_grid.dart';
 import 'package:festivo/features/customer/widgets/venue_image_carousel.dart';
 import 'package:festivo/features/customer/widgets/toast.dart';
 
@@ -241,34 +242,7 @@ class VenueDetailsScreen extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 16,
-                          children: venue.amenities.map((amenity) {
-                            final space = amenity.indexOf(' ');
-                            final emoji = space > 0 ? amenity.substring(0, space) : amenity;
-                            final label = space > 0 ? amenity.substring(space + 1) : '';
-                            return SizedBox(
-                              width: (MediaQuery.sizeOf(context).width - 60) / 3,
-                              child: Row(
-                                children: [
-                                  Text(emoji, style: const TextStyle(fontSize: 18)),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      label,
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.textD(dark),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                        ),
+                        AmenityGrid(amenityIds: venue.amenities, dark: dark),
                       ],
                     ),
                   ),

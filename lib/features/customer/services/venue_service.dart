@@ -95,6 +95,7 @@ class VenueService {
     required int price,
     required int capacity,
     String description = '',
+    List<String> amenities = const [],
     List<String>? imageUrls,
   }) async {
     final doc = await _venues.doc(venueId).get();
@@ -110,6 +111,7 @@ class VenueService {
       'price': price,
       'capacity': capacity,
       'description': description,
+      'amenities': amenities,
       if (imageUrls != null) 'imageUrls': imageUrls,
       'updatedAt': FieldValue.serverTimestamp(),
     });

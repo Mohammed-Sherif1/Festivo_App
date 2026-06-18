@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:festivo/features/customer/services/cloudinary_service.dart';
 import 'package:festivo/features/customer/state/venue_providers.dart';
 import 'package:festivo/features/owner/theme/owner_colors.dart';
+import 'package:festivo/features/owner/widgets/amenity_checkbox_picker.dart';
 import 'package:festivo/features/owner/widgets/venue_images_picker.dart';
 
 class OwnerAddVenueScreen extends ConsumerStatefulWidget {
@@ -26,6 +27,7 @@ class _OwnerAddVenueScreenState extends ConsumerState<OwnerAddVenueScreen> {
   String _category = 'Wedding';
   bool _submitting = false;
   final List<File> _pickedImages = [];
+  Set<String> _selectedAmenities = {};
 
   static const _maxImages = 8;
   static const _categories = [
@@ -83,6 +85,7 @@ class _OwnerAddVenueScreenState extends ConsumerState<OwnerAddVenueScreen> {
             price: price,
             capacity: capacity,
             description: description,
+            amenities: _selectedAmenities.toList(),
             imageUrls: imageUrls,
           );
 
@@ -92,6 +95,7 @@ class _OwnerAddVenueScreenState extends ConsumerState<OwnerAddVenueScreen> {
       _capacityCtrl.clear();
       _descriptionCtrl.clear();
       _pickedImages.clear();
+      setState(() => _selectedAmenities = {});
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -170,6 +174,12 @@ class _OwnerAddVenueScreenState extends ConsumerState<OwnerAddVenueScreen> {
                       .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                       .toList(),
                   onChanged: _submitting ? null : (v) => setState(() => _category = v!),
+                ),
+                const SizedBox(height: 20),
+                AmenityCheckboxPicker(
+                  selectedIds: _selectedAmenities,
+                  enabled: !_submitting,
+                  onChanged: (ids) => setState(() => _selectedAmenities = ids),
                 ),
                 const SizedBox(height: 24),
                 SizedBox(
