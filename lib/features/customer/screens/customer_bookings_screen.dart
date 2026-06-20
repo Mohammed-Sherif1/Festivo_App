@@ -4,8 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:festivo/app/providers/app_providers.dart';
 import 'package:festivo/core/constants/app_colors.dart';
+import 'package:festivo/core/constants/app_strings.dart';
 import 'package:festivo/features/customer/domain/customer_booking.dart';
+import 'package:festivo/features/customer/screens/owner_information_screen.dart';
+import 'package:festivo/features/customer/screens/venue_details_screen.dart';
 import 'package:festivo/features/customer/services/booking_service.dart';
+import 'package:festivo/features/customer/state/venue_providers.dart';
 
 class CustomerBookingsScreen extends ConsumerStatefulWidget {
   const CustomerBookingsScreen({super.key});
@@ -104,7 +108,7 @@ class _CustomerBookingsScreenState extends ConsumerState<CustomerBookingsScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'My Bookings',
+                        AppStrings.myBookings,
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
@@ -112,7 +116,7 @@ class _CustomerBookingsScreenState extends ConsumerState<CustomerBookingsScreen>
                         ),
                       ),
                       Text(
-                        'Manage your reservations',
+                        AppStrings.manageReserv,
                         style: TextStyle(fontSize: 14, color: AppColors.textM(dark)),
                       ),
                     ],
@@ -171,7 +175,7 @@ class _CustomerBookingsScreenState extends ConsumerState<CustomerBookingsScreen>
   }
 }
 
-class _BookingCard extends StatelessWidget {
+class _BookingCard extends ConsumerStatefulWidget {
   final CustomerBooking booking;
   final String dateLabel;
   final bool dark;
@@ -186,17 +190,57 @@ class _BookingCard extends StatelessWidget {
     this.onCancel,
   });
 
-  bool get _isConfirmed => booking.bookingStatus == 'Confirmed';
+  @override
+  ConsumerState<_BookingCard> createState() => _BookingCardState();
+}
+
+class _BookingCardState extends ConsumerState<_BookingCard> {
+  bool _loadingVenue = false;
+
+  Future<void> _openVenueDetails() async {
+    if (_loadingVenue) return;
+    setState(() => _loadingVenue = true);
+    try {
+      final venue = await ref
+          .read(venueServiceProvider)
+          .getVenue(widget.booking.venueId);
+      if (!mounted) return;
+      if (venue == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(AppStrings.venueNotFound)),
+        );
+        return;
+      }
+      VenueDetailsScreen.open(context, venue);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(AppStrings.couldNotLoadVenue)),
+      );
+    } finally {
+      if (mounted) setState(() => _loadingVenue = false);
+    }
+  }
+
+  void _openOwnerInfo() {
+    OwnerInformationScreen.open(
+      context,
+      ownerId: widget.booking.ownerId,
+      venueName: widget.booking.venueName,
+    );
+  }
+
+  bool get _isConfirmed => widget.booking.bookingStatus == 'Confirmed';
 
   Color get _statusBg {
-    if (booking.bookingStatus == 'Cancelled') {
+    if (widget.booking.bookingStatus == 'Cancelled') {
       return const Color(0xFFFFEBEE);
     }
     return _isConfirmed ? const Color(0xFFE8F5E9) : const Color(0xFFFFF8E1);
   }
 
   Color get _statusFg {
-    if (booking.bookingStatus == 'Cancelled') {
+    if (widget.booking.bookingStatus == 'Cancelled') {
       return const Color(0xFFC62828);
     }
     return _isConfirmed ? const Color(0xFF2E7D32) : const Color(0xFFF57F17);
@@ -204,6 +248,9 @@ class _BookingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final booking = widget.booking;
+    final dark = widget.dark;
+
     return Container(
       decoration: BoxDecoration(
         color: AppColors.card(dark),
@@ -266,23 +313,64 @@ class _BookingCard extends StatelessWidget {
             style: TextStyle(color: AppColors.textM(dark)),
           ),
           const SizedBox(height: 10),
-          Text(dateLabel, style: TextStyle(color: AppColors.textM(dark))),
+          Text(widget.dateLabel, style: TextStyle(color: AppColors.textM(dark))),
           const SizedBox(height: 6),
           Text(
             'Payment: ${booking.paymentMethod} · ${booking.paymentStatus}',
             style: TextStyle(color: AppColors.textM(dark), fontSize: 13),
           ),
-          if (onCancel != null) ...[
-            const SizedBox(height: 14),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _loadingVenue ? null : _openVenueDetails,
+              icon: _loadingVenue
+                  ? SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.accent(dark),
+                      ),
+                    )
+                  : Icon(Icons.storefront_outlined, size: 18, color: AppColors.accent(dark)),
+              label: Text(
+                AppStrings.viewVenueDetails,
+                style: TextStyle(color: AppColors.textD(dark)),
+              ),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                side: BorderSide(color: AppColors.gborder),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _openOwnerInfo,
+              icon: Icon(Icons.person_outline_rounded, size: 18, color: AppColors.accent(dark)),
+              label: Text(
+                AppStrings.viewOwnerInfo,
+                style: TextStyle(color: AppColors.textD(dark)),
+              ),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                side: BorderSide(color: AppColors.gborder),
+              ),
+            ),
+          ),
+          if (widget.onCancel != null) ...[
+            const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
-                onPressed: isCancelling ? null : onCancel,
+                onPressed: widget.isCancelling ? null : widget.onCancel,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.redAccent,
                   side: const BorderSide(color: Colors.redAccent),
                 ),
-                child: isCancelling
+                child: widget.isCancelling
                     ? const SizedBox(
                         width: 20,
                         height: 20,

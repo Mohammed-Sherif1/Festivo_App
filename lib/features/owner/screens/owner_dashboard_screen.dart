@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:festivo/core/navigation/post_auth_navigation.dart';
+import 'package:festivo/features/auth/services/auth_service.dart';
 import 'package:festivo/features/customer/domain/customer_booking.dart';
 import 'package:festivo/features/customer/domain/customer_models.dart';
 import 'package:festivo/features/customer/services/venue_service.dart';
@@ -59,7 +60,7 @@ class OwnerDashboardScreen extends ConsumerWidget {
                   icon: Icons.logout,
                   text: 'Out',
                   onTap: () async {
-                    await FirebaseAuth.instance.signOut();
+                    await AuthService.instance.signOut();
                     if (!context.mounted) return;
                     navigateToLogin(context);
                   },

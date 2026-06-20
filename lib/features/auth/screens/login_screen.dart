@@ -89,7 +89,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
       if (!mounted) return;
 
-      navigateForRole(context, storedRole);
+      navigateForRole(context, storedRole, userId: uid);
     } on FirebaseAuthException catch (e) {
       _showError(_authErrorMessage(e));
     } catch (_) {

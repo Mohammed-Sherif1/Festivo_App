@@ -148,7 +148,10 @@ class BookingService {
     if (status == 'Completed' || status == 'Cancelled') {
       throw StateError('Booking cannot be cancelled');
     }
-    await _bookings.doc(bookingId).update({'bookingStatus': 'Cancelled'});
+    await _bookings.doc(bookingId).update({
+      'bookingStatus': 'Cancelled',
+      'cancelledBy': 'customer',
+    });
   }
 
   Future<void> updateBookingStatus({
@@ -168,6 +171,16 @@ class BookingService {
     if (status != 'Confirmed' && status != 'Cancelled') {
       throw ArgumentError('Invalid status: $status');
     }
-    await _bookings.doc(bookingId).update({'bookingStatus': status});
+    await _bookings.doc(bookingId).update({
+      'bookingStatus': status,
+      if (status == 'Cancelled') 'cancelledBy': 'owner',
+    });
+  }
+
+  Future<CustomerBooking?> getBooking(String bookingId) async {
+    if (bookingId.isEmpty) return null;
+    final doc = await _bookings.doc(bookingId).get();
+    if (!doc.exists) return null;
+    return CustomerBooking.fromDoc(doc);
   }
 }

@@ -96,6 +96,27 @@ class AppStrings {
   static const manageReserv      = 'Manage your reservations';
   static const viewDetails       = 'View Details';
   static const contactVenue      = 'Contact Venue';
+  static const viewVenueDetails  = 'View Venue Details';
+  static const viewOwnerInfo     = 'View Owner Information';
+  static const ownerInformation  = 'Owner Information';
+  static const ownerContactSub   = 'Venue owner contact details';
+  static const ownerNotFound     = 'Owner information is not available.';
+  static const couldNotLoadOwner = 'Could not load owner information.';
+  static const venueNotFound     = 'This venue is no longer available.';
+  static const couldNotLoadVenue = 'Could not load venue details.';
+  static const notAvailable      = 'Not available';
+
+  // Owner bookings
+  static const viewBookingDetails  = 'View Booking Details';
+  static const viewCustomerInfo    = 'View Customer Information';
+  static const bookingDetails      = 'Booking Details';
+  static const bookingDetailsSub   = 'Full reservation information';
+  static const customerInformation = 'Customer Information';
+  static const customerContactSub  = 'Customer contact details';
+  static const bookingNotFound     = 'This booking is no longer available.';
+  static const couldNotLoadBooking = 'Could not load booking details.';
+  static const customerNotFound    = 'Customer information is not available.';
+  static const couldNotLoadCustomer = 'Could not load customer information.';
 
   // Filter
   static const filterVenues      = 'Filter Venues';

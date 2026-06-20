@@ -129,7 +129,7 @@ class _SplashScreenV2State extends State<SplashScreenV2>
         : roleRaw.trim().toLowerCase();
 
     debugPrint('[Splash] role=$role -> navigateForRole');
-    _goToRole(role);
+    _goToRole(role, user.uid);
   }
 
   void _goToLogin({required String reason}) {
@@ -139,11 +139,11 @@ class _SplashScreenV2State extends State<SplashScreenV2>
     navigateToLogin(context);
   }
 
-  void _goToRole(String role) {
+  void _goToRole(String role, String userId) {
     if (_navigationDone || !mounted) return;
     _navigationDone = true;
     debugPrint('[Splash] navigating for role=$role');
-    navigateForRole(context, role);
+    navigateForRole(context, role, userId: userId);
   }
 
   // ── Build ─────────────────────────────────────────────────

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../auth/screens/login_screen.dart';
+import '../../auth/services/auth_service.dart';
+import '../../notifications/screens/notifications_screen.dart';
 import '../models/stat_model.dart';
 import '../models/activity_model.dart';
 import '../widgets/stat_card.dart';
@@ -123,7 +124,7 @@ class AdminDashboardScreen extends ConsumerWidget {
           ),
           TextButton(
             onPressed: () async {
-              await FirebaseAuth.instance.signOut();
+              await AuthService.instance.signOut();
               if (!context.mounted) return;
               Navigator.pushAndRemoveUntil(
                 context,
@@ -188,6 +189,8 @@ class _AdminHeader extends StatelessWidget {
             ),
           ),
           _LogOutButton(onPressed: onLogOut),
+          const SizedBox(width: 8),
+          _NotificationsButton(),
         ],
       ),
     );
@@ -217,13 +220,39 @@ class _LogOutButton extends StatelessWidget {
             Text(
               'Log Out',
               style: TextStyle(
+                color: Colors.white,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: Colors.white,
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _NotificationsButton extends StatelessWidget {
+  const _NotificationsButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.18),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withOpacity(0.35)),
+        ),
+        child: const Icon(Icons.notifications_none_rounded,
+            size: 18, color: Colors.white),
       ),
     );
   }

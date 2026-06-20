@@ -23,3 +23,9 @@ final ownerVenuesProvider = StreamProvider<List<Venue>>((ref) {
 final pendingVenuesProvider = StreamProvider<List<Venue>>((ref) {
   return ref.watch(venueServiceProvider).watchPendingVenues();
 });
+
+final venueByIdProvider =
+    StreamProvider.autoDispose.family<Venue?, String>((ref, venueId) {
+  if (venueId.isEmpty) return Stream.value(null);
+  return ref.watch(venueServiceProvider).watchVenue(venueId);
+});

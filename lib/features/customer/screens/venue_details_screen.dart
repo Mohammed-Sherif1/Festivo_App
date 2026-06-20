@@ -8,6 +8,7 @@ import 'package:festivo/features/customer/domain/customer_models.dart';
 import 'package:festivo/features/customer/screens/booking_screen.dart';
 import 'package:festivo/features/customer/screens/venue_reviews_screen.dart';
 import 'package:festivo/features/customer/state/customer_home_controller.dart';
+import 'package:festivo/features/customer/state/venue_providers.dart';
 import 'package:festivo/features/customer/widgets/amenity_grid.dart';
 import 'package:festivo/features/customer/widgets/venue_image_carousel.dart';
 import 'package:festivo/features/customer/widgets/toast.dart';
@@ -32,6 +33,10 @@ class VenueDetailsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final dark = ref.watch(isDarkProvider);
+    final liveVenue = ref.watch(venueByIdProvider(venue.id)).value ?? venue;
+    final ratingLabel = liveVenue.reviews == 0
+        ? '0'
+        : liveVenue.rating.toStringAsFixed(1);
     final favorites = ref.watch(customerHomeControllerProvider).favorites;
     final isFav = favorites.contains(venue.id);
 
@@ -173,7 +178,7 @@ class VenueDetailsScreen extends ConsumerWidget {
                           const Icon(Icons.star, color: AppColors.gold, size: 18),
                           const SizedBox(width: 6),
                           Text(
-                            venue.rating.toString(),
+                            ratingLabel,
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
@@ -182,7 +187,7 @@ class VenueDetailsScreen extends ConsumerWidget {
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            '(${venue.reviews} reviews)',
+                            '(${liveVenue.reviews} reviews)',
                             style: TextStyle(
                               fontSize: 13,
                               color: AppColors.textL(dark),

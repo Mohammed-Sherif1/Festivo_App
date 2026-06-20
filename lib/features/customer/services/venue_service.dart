@@ -50,6 +50,13 @@ class VenueService {
     return Venue.fromDoc(doc);
   }
 
+  Stream<Venue?> watchVenue(String venueId) {
+    return _venues.doc(venueId).snapshots().map((doc) {
+      if (!doc.exists) return null;
+      return Venue.fromDoc(doc);
+    });
+  }
+
   Future<String> createVenue({
     required String name,
     required String location,

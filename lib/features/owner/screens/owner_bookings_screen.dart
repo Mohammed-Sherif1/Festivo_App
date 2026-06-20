@@ -2,8 +2,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:festivo/core/constants/app_strings.dart';
 import 'package:festivo/features/customer/domain/customer_booking.dart';
-import 'package:festivo/features/customer/services/booking_service.dart';
+import 'package:festivo/features/owner/screens/owner_booking_details_screen.dart';
+import 'package:festivo/features/owner/screens/owner_customer_information_screen.dart';
 import 'package:festivo/features/owner/state/owner_providers.dart';
 import 'package:festivo/features/owner/theme/owner_colors.dart';
 import 'package:festivo/features/owner/widgets/owner_widgets.dart';
@@ -218,6 +220,41 @@ class _BookingCard extends StatelessWidget {
             style: const TextStyle(
               fontWeight: FontWeight.w600,
               color: OwnerColors.gold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => OwnerBookingDetailsScreen.open(
+                context,
+                bookingId: booking.id,
+              ),
+              icon: const Icon(Icons.receipt_long_outlined, size: 18),
+              label: const Text(AppStrings.viewBookingDetails),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                foregroundColor: OwnerColors.textDark,
+                side: const BorderSide(color: OwnerColors.pinkBorder),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => OwnerCustomerInformationScreen.open(
+                context,
+                userId: booking.userId,
+                venueName: booking.venueName,
+              ),
+              icon: const Icon(Icons.person_outline_rounded, size: 18),
+              label: const Text(AppStrings.viewCustomerInfo),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                foregroundColor: OwnerColors.textDark,
+                side: const BorderSide(color: OwnerColors.pinkBorder),
+              ),
             ),
           ),
           if (showActions) ...[

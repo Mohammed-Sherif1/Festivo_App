@@ -11,3 +11,9 @@ final ownerBookingsProvider = StreamProvider<List<CustomerBooking>>((ref) {
   if (uid == null) return Stream.value(const []);
   return ref.watch(bookingServiceProvider).watchOwnerBookings(uid);
 });
+
+final bookingByIdProvider =
+    FutureProvider.autoDispose.family<CustomerBooking?, String>((ref, bookingId) {
+  if (bookingId.isEmpty) return Future.value(null);
+  return ref.watch(bookingServiceProvider).getBooking(bookingId);
+});

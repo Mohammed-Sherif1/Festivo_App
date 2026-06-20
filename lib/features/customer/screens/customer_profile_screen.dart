@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:festivo/app/providers/app_providers.dart';
 import 'package:festivo/core/constants/app_colors.dart';
 import 'package:festivo/core/navigation/post_auth_navigation.dart';
+import 'package:festivo/features/auth/services/auth_service.dart';
+import 'package:festivo/features/notifications/screens/notifications_screen.dart';
 import 'package:festivo/features/customer/screens/customer_profile_subpages.dart';
 import 'package:festivo/features/customer/screens/edit_profile_screen.dart';
 
@@ -70,7 +72,12 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
   }
 
   Future<void> _logout() async {
-    await FirebaseAuth.instance.signOut();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      await AuthService.instance.signOut();
+    } else {
+      await FirebaseAuth.instance.signOut();
+    }
     if (!mounted) return;
     navigateToLogin(context);
   }
@@ -191,7 +198,7 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
                     title: 'Notifications',
                     subtitle: 'Manage alerts and preferences',
                     icon: Icons.notifications_none_rounded,
-                    onTap: () => _pushPage(const NotificationsPage()),
+                    onTap: () => _pushPage(const NotificationsScreen()),
                   ),
                   _MenuTile(
                     dark: dark,

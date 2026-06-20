@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
+import '../../notifications/services/notification_service.dart';
 
 // ─────────────────────────────────────────────
 // Authentication service — wraps FirebaseAuth + Firestore user ops
@@ -96,15 +97,36 @@ class AuthService {
   }
 
   // ── Sign out ──────────────────────────────────────────────
-  Future<void> signOut() => _auth.signOut();
+  Future<void> signOut() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid != null && uid.isNotEmpty) {
+      await NotificationService.instance.clearRegistration(uid);
+    }
+    await _auth.signOut();
+  }
 
   // ── Fetch user profile ────────────────────────────────────
   Future<UserModel?> fetchUserProfile() async {
     final user = _auth.currentUser;
     if (user == null) return null;
-    final doc = await _db.collection('users').doc(user.uid).get();
+    return getUserById(user.uid);
+  }
+
+  /// Fetches any user document by UID (e.g. venue owner contact info).
+  Future<UserModel?> getUserById(String uid) async {
+    if (uid.isEmpty) return null;
+    final doc = await _db.collection('users').doc(uid).get();
     if (!doc.exists) return null;
-    return UserModel.fromMap(user.uid, doc.data()!);
+    return UserModel.fromMap(uid, doc.data()!);
+  }
+
+  /// Merges only the supplied fields into the user's Firestore document.
+  Future<void> updateUserProfile({
+    required String uid,
+    required Map<String, dynamic> updates,
+  }) async {
+    if (uid.isEmpty || updates.isEmpty) return;
+    await _db.collection('users').doc(uid).set(updates, SetOptions(merge: true));
   }
 
   // ── Role string conversion ────────────────────────────────
