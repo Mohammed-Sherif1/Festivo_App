@@ -75,7 +75,9 @@ class _SplashScreenV2State extends State<SplashScreenV2>
       await _resolveAuthBody().timeout(
         _maxSplashDuration,
         onTimeout: () {
-          debugPrint('[Splash] failsafe: max ${_maxSplashDuration.inSeconds}s elapsed');
+          debugPrint(
+            '[Splash] failsafe: max ${_maxSplashDuration.inSeconds}s elapsed',
+          );
           throw TimeoutException('Splash auth resolution timed out');
         },
       );
@@ -106,7 +108,9 @@ class _SplashScreenV2State extends State<SplashScreenV2>
         .timeout(
           _firestoreTimeout,
           onTimeout: () {
-            debugPrint('[Splash] Firestore get timed out after ${_firestoreTimeout.inSeconds}s');
+            debugPrint(
+              '[Splash] Firestore get timed out after ${_firestoreTimeout.inSeconds}s',
+            );
             throw TimeoutException('Firestore user lookup timed out');
           },
         );
@@ -205,7 +209,7 @@ class _SplashScreenV2State extends State<SplashScreenV2>
                     ),
                     child: Center(
                       child: Image.asset(
-                        'assets/logo.jpeg',
+                        '../../../assets/Festivo_Logo.png',
                         width: 68,
                         height: 68,
                         fit: BoxFit.contain,
