@@ -115,6 +115,7 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
         'email': email,
         'phone': phone,
         'role': _roleToFirestore(ui.selectedAccountType),
+        'accountStatus': 'active',
         'createdAt': FieldValue.serverTimestamp(),
         'isActive': true,
       });

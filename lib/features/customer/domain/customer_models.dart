@@ -24,6 +24,7 @@ class Venue {
   final List<String> imageUrls;
   final String status;
   final DateTime? createdAt;
+  final DateTime? updatedAt;
 
   const Venue({
     required this.id,
@@ -42,6 +43,7 @@ class Venue {
     this.imageUrls = const [],
     required this.status,
     this.createdAt,
+    this.updatedAt,
   });
 
   static const statusPending = 'Pending';
@@ -77,6 +79,7 @@ class Venue {
           : const [],
       status: data['status'] as String? ?? statusPending,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -109,6 +112,7 @@ class Venue {
       imageUrls: imageUrls ?? this.imageUrls,
       status: status ?? this.status,
       createdAt: createdAt,
+      updatedAt: this.updatedAt,
     );
   }
 }

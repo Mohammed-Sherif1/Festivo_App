@@ -19,6 +19,7 @@ class CustomerBooking {
   final String ownerId;
   final int totalAmount;
   final DateTime createdAt;
+  final DateTime? updatedAt;
 
   const CustomerBooking({
     required this.id,
@@ -39,6 +40,7 @@ class CustomerBooking {
     required this.ownerId,
     required this.totalAmount,
     required this.createdAt,
+    this.updatedAt,
   });
 
   bool get canCancel =>
@@ -67,6 +69,7 @@ class CustomerBooking {
       ownerId: data['ownerId'] as String? ?? '',
       totalAmount: (data['totalAmount'] as num?)?.toInt() ?? 0,
       createdAt: created,
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
     );
   }
 }

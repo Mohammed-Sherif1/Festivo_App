@@ -11,6 +11,14 @@ class ReviewService {
   final CollectionReference<Map<String, dynamic>> _reviews;
   final CollectionReference<Map<String, dynamic>> _venues;
 
+  Stream<List<VenueReview>> watchAllReviews() {
+    return _reviews.snapshots().map((snap) {
+      final list = snap.docs.map(VenueReview.fromDoc).toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
+  }
+
   Stream<List<VenueReview>> watchVenueReviews(String venueId) {
     return _reviews.where('venueId', isEqualTo: venueId).snapshots().map((snap) {
       final list = snap.docs.map(VenueReview.fromDoc).toList();

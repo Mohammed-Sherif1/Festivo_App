@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:festivo/core/auth/account_status.dart';
 import 'package:festivo/core/navigation/post_auth_navigation.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -123,7 +124,19 @@ class _SplashScreenV2State extends State<SplashScreenV2>
       return;
     }
 
-    final roleRaw = doc.data()?['role'] as String?;
+    final data = doc.data();
+    if (AccountStatus.isSuspendedFromData(data)) {
+      debugPrint('[Splash] account suspended -> AccountSuspendedScreen');
+      try {
+        await FirebaseAuth.instance.signOut();
+      } catch (e) {
+        debugPrint('[Splash] signOut after suspension failed: $e');
+      }
+      _goToAccountSuspended();
+      return;
+    }
+
+    final roleRaw = data?['role'] as String?;
     final role = (roleRaw == null || roleRaw.trim().isEmpty)
         ? 'customer'
         : roleRaw.trim().toLowerCase();
@@ -137,6 +150,13 @@ class _SplashScreenV2State extends State<SplashScreenV2>
     _navigationDone = true;
     debugPrint('[Splash] navigating to LoginScreen ($reason)');
     navigateToLogin(context);
+  }
+
+  void _goToAccountSuspended() {
+    if (_navigationDone || !mounted) return;
+    _navigationDone = true;
+    debugPrint('[Splash] navigating to AccountSuspendedScreen');
+    navigateToAccountSuspended(context);
   }
 
   void _goToRole(String role, String userId) {

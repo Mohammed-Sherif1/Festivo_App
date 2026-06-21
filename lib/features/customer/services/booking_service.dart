@@ -55,6 +55,14 @@ class BookingService {
     });
   }
 
+  Stream<List<CustomerBooking>> watchAllBookings() {
+    return _bookings.snapshots().map((snap) {
+      final list = snap.docs.map(CustomerBooking.fromDoc).toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
+  }
+
   Stream<List<CustomerBooking>> watchOwnerBookings(String ownerId) {
     return _bookings.where('ownerId', isEqualTo: ownerId).snapshots().map((snap) {
       final list = snap.docs.map(CustomerBooking.fromDoc).toList();
@@ -151,6 +159,7 @@ class BookingService {
     await _bookings.doc(bookingId).update({
       'bookingStatus': 'Cancelled',
       'cancelledBy': 'customer',
+      'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 
@@ -174,6 +183,7 @@ class BookingService {
     await _bookings.doc(bookingId).update({
       'bookingStatus': status,
       if (status == 'Cancelled') 'cancelledBy': 'owner',
+      'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 

@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/auth/account_status.dart';
+
 // ─────────────────────────────────────────────
 // User domain model — mirrors the Firestore 'users' document schema
 // ─────────────────────────────────────────────
@@ -9,6 +11,7 @@ class UserModel {
   final String email;
   final String phone;
   final String role; // 'customer' | 'venue_owner' | 'admin'
+  final String accountStatus; // 'active' | 'suspended'
   final bool isActive;
   final String? photoUrl;
   final String? location;
@@ -22,6 +25,7 @@ class UserModel {
     required this.email,
     required this.phone,
     required this.role,
+    required this.accountStatus,
     required this.isActive,
     this.photoUrl,
     this.location,
@@ -32,13 +36,15 @@ class UserModel {
 
   // ── Firestore → model ─────────────────────────────────────
   factory UserModel.fromMap(String uid, Map<String, dynamic> data) {
+    final suspended = AccountStatus.isSuspendedFromData(data);
     return UserModel(
       uid: uid,
       name: data['name'] as String? ?? '',
       email: data['email'] as String? ?? '',
       phone: data['phone'] as String? ?? '',
       role: data['role'] as String? ?? 'customer',
-      isActive: data['isActive'] as bool? ?? true,
+      accountStatus: suspended ? AccountStatus.suspended : AccountStatus.active,
+      isActive: data['isActive'] as bool? ?? !suspended,
       photoUrl: data['photoUrl'] as String?,
       location: data['location'] as String?,
       latitude: (data['latitude'] as num?)?.toDouble(),
@@ -54,6 +60,7 @@ class UserModel {
         'email': email,
         'phone': phone,
         'role': role,
+        'accountStatus': accountStatus,
         'isActive': isActive,
         if (photoUrl != null) 'photoUrl': photoUrl,
         if (location != null) 'location': location,
@@ -65,6 +72,10 @@ class UserModel {
 
   /// First letter of the name, upper-cased; falls back to 'U'.
   String get initial => name.isNotEmpty ? name[0].toUpperCase() : 'U';
+
+  bool get isSuspended => accountStatus == AccountStatus.suspended;
+
+  String get statusLabel => isSuspended ? 'Suspended' : 'Active';
 
   /// Human-readable role label shown in the UI.
   String get roleLabel {
@@ -78,6 +89,11 @@ class UserModel {
     }
   }
 
+  bool get isCustomerOrOwner {
+    final normalized = role.toLowerCase();
+    return normalized == 'customer' || normalized == 'venue_owner';
+  }
+
   /// Copy with changed fields.
   UserModel copyWith({
     String? name,
@@ -87,6 +103,7 @@ class UserModel {
     String? photoUrl,
     double? latitude,
     double? longitude,
+    String? accountStatus,
     bool? isActive,
   }) =>
       UserModel(
@@ -95,6 +112,7 @@ class UserModel {
         email: email ?? this.email,
         phone: phone ?? this.phone,
         role: role,
+        accountStatus: accountStatus ?? this.accountStatus,
         isActive: isActive ?? this.isActive,
         photoUrl: photoUrl ?? this.photoUrl,
         location: location ?? this.location,

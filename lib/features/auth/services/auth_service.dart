@@ -1,5 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+
+import '../../../core/auth/account_status.dart';
 import '../models/user_model.dart';
 import '../../notifications/services/notification_service.dart';
 
@@ -38,6 +40,11 @@ class AuthService {
 
     final user = UserModel.fromMap(uid, doc.data()!);
 
+    if (user.isSuspended) {
+      await _auth.signOut();
+      throw AccountSuspendedException();
+    }
+
     // Role mismatch check
     if (user.roleLabel != selectedRole) {
       await _auth.signOut();
@@ -74,6 +81,7 @@ class AuthService {
       email: email,
       phone: phone,
       role: firestoreRole,
+      accountStatus: AccountStatus.active,
       isActive: true,
     );
 
@@ -112,6 +120,37 @@ class AuthService {
     return getUserById(user.uid);
   }
 
+  /// Live stream of all registered users for admin dashboards.
+  Stream<List<UserModel>> watchAllUsers() {
+    return _db.collection('users').snapshots().map((snap) {
+      final list = snap.docs
+          .map((doc) => UserModel.fromMap(doc.id, doc.data()))
+          .toList();
+      list.sort((a, b) {
+        final aTime = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bTime = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return bTime.compareTo(aTime);
+      });
+      return list;
+    });
+  }
+
+  /// Customers and venue owners shown in the admin Users tab.
+  Stream<List<UserModel>> watchManageableUsers() {
+    return watchAllUsers().map(
+      (users) => users.where((user) => user.isCustomerOrOwner).toList(),
+    );
+  }
+
+  /// Real-time stream for a single user document (account status monitoring).
+  Stream<UserModel?> watchUser(String uid) {
+    if (uid.isEmpty) return Stream.value(null);
+    return _db.collection('users').doc(uid).snapshots().map((snap) {
+      if (!snap.exists) return null;
+      return UserModel.fromMap(snap.id, snap.data()!);
+    });
+  }
+
   /// Fetches any user document by UID (e.g. venue owner contact info).
   Future<UserModel?> getUserById(String uid) async {
     if (uid.isEmpty) return null;
@@ -129,6 +168,31 @@ class AuthService {
     await _db.collection('users').doc(uid).set(updates, SetOptions(merge: true));
   }
 
+  /// Updates account status and keeps the legacy `isActive` flag in sync.
+  Future<void> updateAccountStatus({
+    required String uid,
+    required String accountStatus,
+  }) async {
+    final isActive = accountStatus == AccountStatus.active;
+    await updateUserProfile(
+      uid: uid,
+      updates: {
+        'accountStatus': accountStatus,
+        'isActive': isActive,
+      },
+    );
+  }
+
+  Future<void> suspendUser(String uid) => updateAccountStatus(
+        uid: uid,
+        accountStatus: AccountStatus.suspended,
+      );
+
+  Future<void> reactivateUser(String uid) => updateAccountStatus(
+        uid: uid,
+        accountStatus: AccountStatus.active,
+      );
+
   // ── Role string conversion ────────────────────────────────
   String _uiRoleToFirestore(String uiRole) {
     switch (uiRole) {
@@ -138,4 +202,10 @@ class AuthService {
         return 'customer';
     }
   }
+}
+
+/// Thrown when a suspended account attempts to sign in.
+class AccountSuspendedException implements Exception {
+  @override
+  String toString() => 'Account suspended';
 }

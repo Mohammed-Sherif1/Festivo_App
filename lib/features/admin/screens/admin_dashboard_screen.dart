@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../auth/models/user_model.dart';
 import '../../auth/screens/login_screen.dart';
 import '../../auth/services/auth_service.dart';
 import '../../notifications/screens/notifications_screen.dart';
+import '../models/admin_dashboard_snapshot.dart';
 import '../models/stat_model.dart';
-import '../models/activity_model.dart';
+import '../state/admin_dashboard_providers.dart';
+import '../state/admin_users_providers.dart';
+import '../utils/relative_time.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/activity_card.dart';
 import 'package:festivo/features/customer/state/venue_providers.dart';
@@ -17,64 +21,6 @@ import '../state/admin_providers.dart';
 // Admin tab enum
 // ─────────────────────────────────────────────
 enum AdminTab { overview, users, venues }
-
-// ─────────────────────────────────────────────
-// Mock data
-// ─────────────────────────────────────────────
-const _stats = [
-  StatModel(
-    label: 'Total Users',
-    value: '3',
-    icon: Icons.group,
-    iconColor: AppColors.borderBlue,
-    borderColor: AppColors.borderBlue,
-  ),
-  StatModel(
-    label: 'Venues',
-    value: '3',
-    icon: Icons.account_balance,
-    iconColor: AppColors.borderGreen,
-    borderColor: AppColors.borderGreen,
-  ),
-  StatModel(
-    label: 'Pending',
-    value: '2',
-    icon: Icons.hourglass_top_rounded,
-    iconColor: AppColors.borderOrange,
-    borderColor: AppColors.borderOrange,
-  ),
-  StatModel(
-    label: 'Bookings',
-    value: '20',
-    icon: Icons.calendar_month_rounded,
-    iconColor: AppColors.borderGold,
-    borderColor: AppColors.borderGold,
-  ),
-];
-
-const _activities = [
-  ActivityModel(
-    title: 'New venue approved',
-    subtitle: 'Grand Crystal Ballroom · 2 hours ago',
-    icon: Icons.check_rounded,
-    iconColor: AppColors.borderGreen,
-    iconBg: AppColors.actGreenBg,
-  ),
-  ActivityModel(
-    title: 'New user registered',
-    subtitle: 'Omar Ali · 5 hours ago',
-    icon: Icons.person_outline_rounded,
-    iconColor: AppColors.borderBlue,
-    iconBg: AppColors.actBlueBg,
-  ),
-  ActivityModel(
-    title: 'Venue pending verification',
-    subtitle: 'Sunset Rooftop · 1 day ago',
-    icon: Icons.timer_outlined,
-    iconColor: AppColors.borderGold,
-    iconBg: AppColors.actYellowBg,
-  ),
-];
 
 // ─────────────────────────────────────────────
 // Admin Dashboard Screen
@@ -343,65 +289,168 @@ class _TabItem extends StatelessWidget {
 // ─────────────────────────────────────────────
 // Overview Tab
 // ─────────────────────────────────────────────
-class _OverviewTab extends StatelessWidget {
+class _OverviewTab extends ConsumerWidget {
   const _OverviewTab();
 
   @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      physics: const BouncingScrollPhysics(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _StatsGrid(),
-          const SizedBox(height: 14),
-          const _RevenueCard(),
-          const SizedBox(height: 22),
-          const Text(
-            'Recent Activity',
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textDark,
-            ),
-          ),
-          const SizedBox(height: 12),
-          ..._activities.map(
-            (a) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: ActivityCard(item: a),
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
+  Widget build(BuildContext context, WidgetRef ref) {
+    final dashboardAsync = ref.watch(adminDashboardProvider);
+
+    return dashboardAsync.when(
+      loading: () => const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: CircularProgressIndicator(color: AppColors.softRose),
+        ),
       ),
+      error: (error, _) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, color: AppColors.softRose, size: 40),
+              const SizedBox(height: 12),
+              const Text(
+                'Could not load dashboard data',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textDark,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                error.toString(),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12, color: AppColors.textLight),
+              ),
+            ],
+          ),
+        ),
+      ),
+      data: (snapshot) {
+        return SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _StatsGrid(stats: snapshot.stats),
+              const SizedBox(height: 14),
+              _RevenueCard(revenue: snapshot.stats.platformRevenue),
+              const SizedBox(height: 22),
+              const Text(
+                'Recent Activity',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textDark,
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (snapshot.activities.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                  decoration: BoxDecoration(
+                    color: AppColors.cardBg,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Text(
+                    'No recent activity yet.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13, color: AppColors.textLight),
+                  ),
+                )
+              else
+                ...snapshot.activities.map(
+                  (activity) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: ActivityCard(item: activity),
+                  ),
+                ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
     );
   }
 }
 
+List<StatModel> _buildStatCards({
+  required int totalUsers,
+  required int totalVenues,
+  required int pendingVenues,
+  required int totalBookings,
+}) {
+  return [
+    StatModel(
+      label: 'Total Users',
+      value: '$totalUsers',
+      icon: Icons.group,
+      iconColor: AppColors.borderBlue,
+      borderColor: AppColors.borderBlue,
+    ),
+    StatModel(
+      label: 'Total Venues',
+      value: '$totalVenues',
+      icon: Icons.account_balance,
+      iconColor: AppColors.borderGreen,
+      borderColor: AppColors.borderGreen,
+    ),
+    StatModel(
+      label: 'Pending Venues',
+      value: '$pendingVenues',
+      icon: Icons.hourglass_top_rounded,
+      iconColor: AppColors.borderOrange,
+      borderColor: AppColors.borderOrange,
+    ),
+    StatModel(
+      label: 'Total Bookings',
+      value: '$totalBookings',
+      icon: Icons.calendar_month_rounded,
+      iconColor: AppColors.borderGold,
+      borderColor: AppColors.borderGold,
+    ),
+  ];
+}
+
 class _StatsGrid extends StatelessWidget {
-  const _StatsGrid();
+  final AdminDashboardStats stats;
+
+  const _StatsGrid({required this.stats});
 
   @override
   Widget build(BuildContext context) {
+    final cards = _buildStatCards(
+      totalUsers: stats.totalUsers,
+      totalVenues: stats.totalVenues,
+      pendingVenues: stats.pendingVenues,
+      totalBookings: stats.totalBookings,
+    );
+
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: _stats.length,
+      itemCount: cards.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         mainAxisSpacing: 12,
         crossAxisSpacing: 12,
         childAspectRatio: 1.55,
       ),
-      itemBuilder: (_, i) => StatCard(data: _stats[i]),
+      itemBuilder: (_, i) => StatCard(data: cards[i]),
     );
   }
 }
 
 class _RevenueCard extends StatelessWidget {
-  const _RevenueCard();
+  final int revenue;
+
+  const _RevenueCard({required this.revenue});
 
   @override
   Widget build(BuildContext context) {
@@ -426,11 +475,11 @@ class _RevenueCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Platform Revenue',
                   style: TextStyle(
                     fontSize: 13,
@@ -438,19 +487,19 @@ class _RevenueCard extends StatelessWidget {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                SizedBox(height: 6),
+                const SizedBox(height: 6),
                 Text(
-                  '444,000 EGP',
-                  style: TextStyle(
+                  formatEgpAmount(revenue),
+                  style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w800,
                     color: Colors.white,
                     letterSpacing: -0.3,
                   ),
                 ),
-                SizedBox(height: 5),
-                Text(
-                  '↑ +12% this month',
+                const SizedBox(height: 5),
+                const Text(
+                  'From confirmed & completed bookings',
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.white60,
@@ -485,100 +534,132 @@ class _RevenueCard extends StatelessWidget {
 // ─────────────────────────────────────────────
 // Users Tab
 // ─────────────────────────────────────────────
-class _UsersTab extends StatelessWidget {
+class _UsersTab extends ConsumerWidget {
   const _UsersTab();
 
-  static const _users = [
-    {'name': 'Ahmed Hassan', 'email': 'contact@festivo.app', 'role': 'Customer', 'status': 'Active'},
-    {'name': 'Sara Mohamed', 'email': 'contact@festivo.app', 'role': 'Owner', 'status': 'Active'},
-    {'name': 'Omar Ali', 'email': 'contact@festivo.app', 'role': 'Customer', 'status': 'Active'},
-  ];
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final usersAsync = ref.watch(adminUsersProvider);
+
+    return usersAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (_, __) => const Center(
+        child: Text('Could not load users. Please try again.'),
+      ),
+      data: (users) {
+        if (users.isEmpty) {
+          return const Center(child: Text('No users registered yet.'));
+        }
+
+        return ListView.separated(
+          padding: const EdgeInsets.all(16),
+          itemCount: users.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 10),
+          itemBuilder: (_, i) => _UserCard(user: users[i]),
+        );
+      },
+    );
+  }
+}
+
+class _UserCard extends StatelessWidget {
+  final UserModel user;
+
+  const _UserCard({required this.user});
 
   @override
   Widget build(BuildContext context) {
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: _users.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemBuilder: (_, i) {
-        final u = _users[i];
-        final isOwner = u['role'] == 'Owner';
-        return Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppColors.cardBg,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.softRose.withOpacity(0.08),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
-            ],
+    final isOwner = user.role.toLowerCase() == 'venue_owner';
+    final isSuspended = user.isSuspended;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.softRose.withOpacity(0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 22,
-                backgroundColor: isOwner
-                    ? AppColors.gold.withOpacity(0.18)
-                    : AppColors.softRose.withOpacity(0.25),
-                child: Text(
-                  u['name']![0],
-                  style: TextStyle(
+        ],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 22,
+            backgroundColor: isOwner
+                ? AppColors.gold.withOpacity(0.18)
+                : AppColors.softRose.withOpacity(0.25),
+            child: Text(
+              user.initial,
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+                color: isOwner ? AppColors.gold : AppColors.deepRose,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  user.name,
+                  style: const TextStyle(
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    color: isOwner ? AppColors.gold : AppColors.deepRose,
+                    color: AppColors.textDark,
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(height: 2),
+                Text(
+                  user.email,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textLight,
+                  ),
+                ),
+                if (user.phone.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    user.phone,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textLight,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 6),
+                Row(
                   children: [
-                    Text(
-                      u['name']!,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textDark,
-                      ),
+                    _SmallBadge(
+                      label: user.roleLabel,
+                      bg: isOwner
+                          ? AppColors.gold.withOpacity(0.15)
+                          : AppColors.softRose.withOpacity(0.18),
+                      color: isOwner ? AppColors.gold : AppColors.deepRose,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      u['email']!,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textLight,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        _SmallBadge(
-                          label: u['role']!,
-                          bg: isOwner
-                              ? AppColors.gold.withOpacity(0.15)
-                              : AppColors.softRose.withOpacity(0.18),
-                          color: isOwner ? AppColors.gold : AppColors.deepRose,
-                        ),
-                        const SizedBox(width: 6),
-                        const _SmallBadge(
-                          label: 'Active',
-                          bg: AppColors.actGreenBg,
-                          color: Color(0xFF15803D),
-                        ),
-                      ],
+                    const SizedBox(width: 6),
+                    _SmallBadge(
+                      label: user.statusLabel,
+                      bg: isSuspended
+                          ? const Color(0xFFFEE2E2)
+                          : AppColors.actGreenBg,
+                      color: isSuspended
+                          ? const Color(0xFFDC2626)
+                          : const Color(0xFF15803D),
                     ),
                   ],
                 ),
-              ),
-              _SuspendButton(userIndex: i),
-            ],
+              ],
+            ),
           ),
-        );
-      },
+          _SuspendButton(user: user),
+        ],
+      ),
     );
   }
 }
@@ -615,29 +696,91 @@ class _SmallBadge extends StatelessWidget {
 }
 
 class _SuspendButton extends ConsumerStatefulWidget {
-  final int userIndex;
-  const _SuspendButton({required this.userIndex});
+  final UserModel user;
+  const _SuspendButton({required this.user});
 
   @override
   ConsumerState<_SuspendButton> createState() => _SuspendButtonState();
 }
 
 class _SuspendButtonState extends ConsumerState<_SuspendButton> {
+  bool _updating = false;
+
+  Future<void> _confirmSuspend() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Suspend User'),
+        content: Text(
+          'Are you sure you want to suspend ${widget.user.name}? '
+          'They will be signed out immediately and unable to use the app.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.softRose),
+            child: const Text('Suspend'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    await _setSuspended(true);
+  }
+
+  Future<void> _setSuspended(bool suspend) async {
+    setState(() => _updating = true);
+    try {
+      if (suspend) {
+        await AuthService.instance.suspendUser(widget.user.uid);
+      } else {
+        await AuthService.instance.reactivateUser(widget.user.uid);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            suspend
+                ? '${widget.user.name} has been suspended.'
+                : '${widget.user.name} has been reactivated.',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not update user status.')),
+      );
+    } finally {
+      if (mounted) setState(() => _updating = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final suspended = ref.watch(adminUserSuspendedProvider(widget.userIndex));
+    final suspended = widget.user.isSuspended;
+
+    if (_updating) {
+      return const SizedBox(
+        width: 24,
+        height: 24,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    }
+
     return GestureDetector(
-      onTap: () {
-        ref.read(adminUserSuspendedProvider(widget.userIndex).notifier).state =
-            !suspended;
-      },
+      onTap: suspended ? () => _setSuspended(false) : _confirmSuspend,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
           border: Border.all(
-            color: suspended
-                ? AppColors.borderGreen
-                : AppColors.softRose,
+            color: suspended ? AppColors.borderGreen : AppColors.softRose,
           ),
           borderRadius: BorderRadius.circular(10),
         ),
@@ -646,9 +789,7 @@ class _SuspendButtonState extends ConsumerState<_SuspendButton> {
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: suspended
-                ? AppColors.borderGreen
-                : AppColors.softRose,
+            color: suspended ? AppColors.borderGreen : AppColors.softRose,
           ),
         ),
       ),

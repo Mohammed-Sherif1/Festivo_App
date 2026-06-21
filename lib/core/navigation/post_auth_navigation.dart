@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import 'package:festivo/core/auth/account_status_guard.dart';
 import 'package:festivo/core/notifications/notification_bootstrap.dart';
 import 'package:festivo/features/admin/screens/admin_dashboard_screen.dart';
+import 'package:festivo/features/auth/screens/account_suspended_screen.dart';
 import 'package:festivo/features/auth/screens/login_screen.dart';
 import 'package:festivo/features/customer/screens/customer_shell.dart';
 import 'package:festivo/features/notifications/services/notification_service.dart';
@@ -16,10 +18,10 @@ void navigateForRole(BuildContext context, String role, {String? userId}) {
       destination = const AdminDashboardScreen();
       break;
     case 'venue_owner':
-      destination = const OwnerShell();
+      destination = const AccountStatusGuard(child: OwnerShell());
       break;
     default:
-      destination = const CustomerShell();
+      destination = const AccountStatusGuard(child: CustomerShell());
       break;
   }
   Navigator.of(context).pushAndRemoveUntil(
@@ -49,6 +51,13 @@ void navigateForRole(BuildContext context, String role, {String? userId}) {
 void navigateToLogin(BuildContext context) {
   Navigator.of(context).pushAndRemoveUntil(
     MaterialPageRoute(builder: (_) => const LoginScreen()),
+    (route) => false,
+  );
+}
+
+void navigateToAccountSuspended(BuildContext context) {
+  Navigator.of(context).pushAndRemoveUntil(
+    MaterialPageRoute(builder: (_) => const AccountSuspendedScreen()),
     (route) => false,
   );
 }

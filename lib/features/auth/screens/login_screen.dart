@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:festivo/core/auth/account_status.dart';
 import 'package:festivo/core/navigation/post_auth_navigation.dart';
 
 import '../state/login_ui_controller.dart';
@@ -70,6 +71,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
       final data       = doc.data()!;
       final storedRole = data['role'] as String? ?? 'customer';
+
+      if (AccountStatus.isSuspendedFromData(data)) {
+        await _auth.signOut();
+        if (!mounted) return;
+        navigateToAccountSuspended(context);
+        return;
+      }
 
       const roleMap = {
         'customer'    : 'Customer',
